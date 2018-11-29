@@ -70,7 +70,7 @@ generatingModel <- paste(stabilityX,
 #' We want to sample data from a null model where _x_ and _y_ are correlated over time
 #' (due to some shared influences), but are _not_ causally related. This is the null model
 #' we're implicitly testing against, so we need to know that our procedure's error rate performance
-#' is as expected (that is, that if we set $\aplha=.05$ we're actually controlling or error rate at
+#' is as expected (that is, that if we set $\alpha=.05$ we're actually controlling or error rate at
 #' 5%). I've created a model that has _x_ and _y_ observed at 12 occasions, with x and y having high stability
 #' (.7) and being somewhat correlated (.3).  
 #'
@@ -216,7 +216,7 @@ if(rerun){
                                                      simplify = F))
                                          return(somereps)
                                        }, mc.cores = detectCores()))
-  saveRDS(no_wcen_ar_reps, '~/data/no_wcen_ar.RDS')
+  saveRDS(no_wcen_ar_reps, '~/code/lagged_mlm/no_wcen_ar.RDS')
   
   system.time(wcen_ar_reps <- mclapply(seq(30, 250, 40),
                                      function(n) {
@@ -226,7 +226,7 @@ if(rerun){
                                                    simplify = F))
                                        return(somereps)
                                      }, mc.cores = detectCores()))
-  saveRDS(wcen_ar_reps, '~/data/wcen_ar.RDS')
+  saveRDS(wcen_ar_reps, '~/code/lagged_mlm/wcen_ar.RDS')
   
   system.time(no_wcen_ylag_reps <- mclapply(seq(30, 250, 40),
                                           function(n) {
@@ -236,7 +236,7 @@ if(rerun){
                                                         simplify = F))
                                             return(somereps)
                                           }, mc.cores = detectCores()))
-  saveRDS(no_wcen_ylag_reps, '~/data/no_wcen_ylag_reps.RDS')
+  saveRDS(no_wcen_ylag_reps, '~/code/lagged_mlm/no_wcen_ylag_reps.RDS')
   
   system.time(wcen_ylag_reps <- mclapply(seq(30, 250, 40),
                                        function(n) {
@@ -246,12 +246,12 @@ if(rerun){
                                                      simplify = F))
                                          return(somereps)
                                        }, mc.cores = detectCores()))
-  saveRDS(wcen_ylag_reps, '~/data/wcen_ylag_reps.RDS')
+  saveRDS(wcen_ylag_reps, '~/code/lagged_mlm/wcen_ylag_reps.RDS')
 } else {
-  no_wcen_ar_reps <- readRDS('~/data/no_wcen_ar.RDS')
-  wcen_ar_reps <- readRDS('~/data/wcen_ar.RDS')
-  no_wcen_ylag_reps <- readRDS('~/data/no_wcen_ylag_reps.RDS')
-  wcen_ylag_reps <- readRDS('~/data/wcen_ylag_reps.RDS')
+  no_wcen_ar_reps <- readRDS('~/code/lagged_mlm/no_wcen_ar.RDS')
+  wcen_ar_reps <- readRDS('~/code/lagged_mlm/wcen_ar.RDS')
+  no_wcen_ylag_reps <- readRDS('~/code/lagged_mlm/no_wcen_ylag_reps.RDS')
+  wcen_ylag_reps <- readRDS('~/code/lagged_mlm/wcen_ylag_reps.RDS')
 }
 
 #'

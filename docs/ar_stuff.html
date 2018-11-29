@@ -123,43 +123,19 @@ $(document).ready(function () {
 
 <h1 class="title toc-ignore">ar_stuff.R</h1>
 <h4 class="author"><em>John Flournoy</em></h4>
-<h4 class="date"><em>Thu Nov 29 12:17:59 2018</em></h4>
+<h4 class="date"><em>Thu Nov 29 12:35:47 2018</em></h4>
 
 </div>
 
 
-<pre class="r"><code>library(simsem)</code></pre>
-<pre><code>## Loading required package: lavaan</code></pre>
-<pre><code>## This is lavaan 0.6-3</code></pre>
-<pre><code>## lavaan is BETA software! Please report any bugs.</code></pre>
-<pre><code>## </code></pre>
-<pre><code>## #################################################################</code></pre>
-<pre><code>## This is simsem 0.5-14</code></pre>
-<pre><code>## simsem is BETA software! Please report any bugs.</code></pre>
-<pre><code>## simsem was first developed at the University of Kansas Center for</code></pre>
-<pre><code>## Research Methods and Data Analysis, under NSF Grant 1053160.</code></pre>
-<pre><code>## #################################################################</code></pre>
-<pre><code>## 
-## Attaching package: 'simsem'</code></pre>
-<pre><code>## The following object is masked from 'package:lavaan':
-## 
-##     inspect</code></pre>
-<pre class="r"><code>library(nlme)
+<pre class="r"><code>library(simsem)
+library(nlme)
+library(lmerTest)
+library(lme4)
 library(semPlot)
-library(dplyr)</code></pre>
-<pre><code>## 
-## Attaching package: 'dplyr'</code></pre>
-<pre><code>## The following object is masked from 'package:nlme':
-## 
-##     collapse</code></pre>
-<pre><code>## The following objects are masked from 'package:stats':
-## 
-##     filter, lag</code></pre>
-<pre><code>## The following objects are masked from 'package:base':
-## 
-##     intersect, setdiff, setequal, union</code></pre>
-<pre class="r"><code>library(tidyr)</code></pre>
-<p>We want to sample data from a null model where <em>x</em> and <em>y</em> are correlated over time (due to some shared influences), but are <em>not</em> causally related. This is the null model we’re implicitly testing against, so we need to know that our procedure’s error rate performance is as expected (that is, that if we set <span class="math inline">\(\aplha=.05\)</span> we’re actually controlling or error rate at 5%). I’ve created a model that has <em>x</em> and <em>y</em> observed at 12 occasions, with x and y having high stability (.7) and being somewhat correlated (.3).</p>
+library(dplyr)
+library(tidyr)</code></pre>
+<p>We want to sample data from a null model where <em>x</em> and <em>y</em> are correlated over time (due to some shared influences), but are <em>not</em> causally related. This is the null model we’re implicitly testing against, so we need to know that our procedure’s error rate performance is as expected (that is, that if we set <span class="math inline">\(\alpha=.05\)</span> we’re actually controlling or error rate at 5%). I’ve created a model that has <em>x</em> and <em>y</em> observed at 12 occasions, with x and y having high stability (.7) and being somewhat correlated (.3).</p>
 <pre class="r"><code>someData &lt;- simulateData(model=generatingModel, sample.nobs=250, empirical=T)
 fit.DGM &lt;- sem(generatingModel, someData, fixed.x=F)
 semPaths(fit.DGM, what='est', rotation=2, exoCov=T, exoVar=T, layout = 'tree2', residuals = F)</code></pre>
@@ -198,7 +174,7 @@ summary(lag1.misspec)</code></pre>
 ## 
 ## Standardized Within-Group Residuals:
 ##          Min           Q1          Med           Q3          Max 
-## -3.051187237 -0.624407461 -0.002010807  0.649747834  3.428066967 
+## -3.045461571 -0.635419703 -0.006495003  0.651265096  3.212700614 
 ## 
 ## Number of Observations: 2750
 ## Number of Groups: 250</code></pre>
@@ -227,8 +203,8 @@ summary(lag1.ylag)</code></pre>
 ## x_lag  0.0   -0.3 
 ## 
 ## Standardized Within-Group Residuals:
-##         Min          Q1         Med          Q3         Max 
-## -3.19310713 -0.67919738  0.01149667  0.66376160  3.37478503 
+##          Min           Q1          Med           Q3          Max 
+## -3.448648142 -0.676944865 -0.006771738  0.687543025  3.211046850 
 ## 
 ## Number of Observations: 2750
 ## Number of Groups: 250</code></pre>
@@ -259,8 +235,8 @@ summary(lag1.ylag.xcor)</code></pre>
 ## x      0.000  0.000 -0.664
 ## 
 ## Standardized Within-Group Residuals:
-##         Min          Q1         Med          Q3         Max 
-## -3.18115338 -0.69248707  0.01561211  0.67529340  3.37708345 
+##          Min           Q1          Med           Q3          Max 
+## -3.210944357 -0.680596978 -0.008580928  0.674276519  3.403854127 
 ## 
 ## Number of Observations: 2750
 ## Number of Groups: 250</code></pre>
@@ -295,7 +271,7 @@ summary(lag1.yAR) </code></pre>
 ## 
 ## Standardized Within-Group Residuals:
 ##          Min           Q1          Med           Q3          Max 
-## -3.224111954 -0.648032026  0.006370135  0.678710519  4.164566797 
+## -3.151876643 -0.676782656  0.004474799  0.672648396  3.566722244 
 ## 
 ## Number of Observations: 2750
 ## Number of Groups: 250</code></pre>
@@ -378,7 +354,7 @@ if(rerun){
                                                      simplify = F))
                                          return(somereps)
                                        }, mc.cores = detectCores()))
-  saveRDS(no_wcen_ar_reps, '~/data/no_wcen_ar.RDS')
+  saveRDS(no_wcen_ar_reps, '~/code/lagged_mlm/no_wcen_ar.RDS')
   
   system.time(wcen_ar_reps &lt;- mclapply(seq(30, 250, 40),
                                      function(n) {
@@ -388,7 +364,7 @@ if(rerun){
                                                    simplify = F))
                                        return(somereps)
                                      }, mc.cores = detectCores()))
-  saveRDS(wcen_ar_reps, '~/data/wcen_ar.RDS')
+  saveRDS(wcen_ar_reps, '~/code/lagged_mlm/wcen_ar.RDS')
   
   system.time(no_wcen_ylag_reps &lt;- mclapply(seq(30, 250, 40),
                                           function(n) {
@@ -398,7 +374,7 @@ if(rerun){
                                                         simplify = F))
                                             return(somereps)
                                           }, mc.cores = detectCores()))
-  saveRDS(no_wcen_ylag_reps, '~/data/no_wcen_ylag_reps.RDS')
+  saveRDS(no_wcen_ylag_reps, '~/code/lagged_mlm/no_wcen_ylag_reps.RDS')
   
   system.time(wcen_ylag_reps &lt;- mclapply(seq(30, 250, 40),
                                        function(n) {
@@ -408,12 +384,12 @@ if(rerun){
                                                      simplify = F))
                                          return(somereps)
                                        }, mc.cores = detectCores()))
-  saveRDS(wcen_ylag_reps, '~/data/wcen_ylag_reps.RDS')
+  saveRDS(wcen_ylag_reps, '~/code/lagged_mlm/wcen_ylag_reps.RDS')
 } else {
-  no_wcen_ar_reps &lt;- readRDS('~/data/no_wcen_ar.RDS')
-  wcen_ar_reps &lt;- readRDS('~/data/wcen_ar.RDS')
-  no_wcen_ylag_reps &lt;- readRDS('~/data/no_wcen_ylag_reps.RDS')
-  wcen_ylag_reps &lt;- readRDS('~/data/wcen_ylag_reps.RDS')
+  no_wcen_ar_reps &lt;- readRDS('~/code/lagged_mlm/no_wcen_ar.RDS')
+  wcen_ar_reps &lt;- readRDS('~/code/lagged_mlm/wcen_ar.RDS')
+  no_wcen_ylag_reps &lt;- readRDS('~/code/lagged_mlm/no_wcen_ylag_reps.RDS')
+  wcen_ylag_reps &lt;- readRDS('~/code/lagged_mlm/wcen_ylag_reps.RDS')
 }</code></pre>
 <div id="using-ar-residual-structure-to-account-for-stability" class="section level1">
 <h1>Using AR residual structure to account for stability</h1>
