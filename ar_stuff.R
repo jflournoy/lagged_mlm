@@ -40,7 +40,7 @@ residuals <- paste(unlist(
 correlation <- paste(unlist(
   lapply(1:length(var_at_wave[[1]]), 
          function(i){
-           paste0(var_at_wave[[1]][i], ' ~~ .3*', var_at_wave[[2]][i])
+           paste0(var_at_wave[[1]][i], ' ~~ .5*', var_at_wave[[2]][i])
          })),
   collapse = '\n')
 
@@ -170,22 +170,39 @@ generate_data <- function(n = 250, gen_mod, wcen = FALSE){
   return(someData_long)
 }
 
-run_model <- function(n = 250, gen_mod, wcen = FALSE, use_lag_y = FALSE){
+run_model <- function(n = 250, gen_mod, wcen = FALSE, use_lag_y = FALSE, use_lme4 = FALSE, wcen_re = FALSE){
   someData_long <- generate_data(n = n, gen_mod = gen_mod, wcen = wcen)
 
   if(wcen){
     if(use_lag_y){
-      lag1.yAR <-lme(y ~ 1 + wcen_y_lag + gcen_y + wcen_x_lag + gcen_x, random = ~ 1 | id, data = someData_long,
-                     na.action = na.omit)  
+      if(use_lme4){
+        if(wcen_re){
+          lag1.yAR <-lmer(y ~ 1 + wcen_y_lag + gcen_y + wcen_x_lag + gcen_x + (1 + wcen_x_lag || id), data = someData_long,
+                          REML = TRUE,
+                          na.action = na.omit)
+        } else {
+          lag1.yAR <-lmer(y ~ 1 + wcen_y_lag + gcen_y + wcen_x_lag + gcen_x + (1 | id), data = someData_long,
+                          REML = TRUE,
+                          na.action = na.omit)
+        }
+      } else {
+        lag1.yAR <-lme(y ~ 1 + wcen_y_lag + gcen_y + wcen_x_lag + gcen_x, random = ~ 1 | id, data = someData_long,
+                       na.action = na.omit) 
+      }
     } else {
       lag1.yAR <-lme(y ~ 1 + wcen_x_lag + gcen_x, random = ~ 1 | id, data = someData_long,
                      correlation = corAR1(form = ~ wave | id),
                      na.action = na.omit)
     }
-    
-    asum <- summary(lag1.yAR)
-    x_lag_p <- asum$tTable['wcen_x_lag', 'p-value']
-    x_lag_bias <- asum$tTable['wcen_x_lag', 'Value']
+    if(use_lme4){
+      asum <- coef(summary(lag1.yAR, ddf = 'Satterthwaite'))
+      x_lag_p <- asum['wcen_x_lag', 'Pr(>|t|)']
+      x_lag_bias <- asum['wcen_x_lag', 'Estimate']
+    } else {
+      asum <- summary(lag1.yAR)
+      x_lag_p <- asum$tTable['wcen_x_lag', 'p-value']
+      x_lag_bias <- asum$tTable['wcen_x_lag', 'Value'] 
+    }
   } else {
     if(use_lag_y){
       lag1.yAR <-lme(y ~ 1 + y_lag + x_lag, random = ~ 1 | id, data = someData_long,
@@ -247,47 +264,76 @@ if(rerun){
                                          return(somereps)
                                        }, mc.cores = detectCores()))
   saveRDS(wcen_ylag_reps, '~/code/lagged_mlm/wcen_ylag_reps.RDS')
+  
+  system.time(wcen_ylag_l4_reps <- mclapply(seq(30, 250, 40),
+                                            function(n) {
+                                              somereps <- dplyr::bind_rows(
+                                                replicate(reps_per_n,
+                                                          run_model(n, generatingModel, wcen = T, use_lag_y = T,
+                                                                    use_lme4 = T, wcen_re = F),
+                                                          simplify = F))
+                                              return(somereps)
+                                            }, mc.cores = detectCores()))
+  saveRDS(wcen_ylag_l4_reps, '~/code/lagged_mlm/wcen_ylag_l4_reps.RDS')
+  
+  system.time(wcen_ylag_l4_wcenre_reps <- mclapply(seq(30, 250, 40),
+                                                   function(n) {
+                                                     somereps <- dplyr::bind_rows(
+                                                       replicate(reps_per_n,
+                                                                 run_model(n, generatingModel, wcen = T, use_lag_y = T,
+                                                                           use_lme4 = T, wcen_re = T),
+                                                                 simplify = F))
+                                                     return(somereps)
+                                                   }, mc.cores = detectCores()))
+  saveRDS(wcen_ylag_l4_wcenre_reps, '~/code/lagged_mlm/wcen_ylag_l4_wcenre_reps.RDS')
 } else {
   no_wcen_ar_reps <- readRDS('~/code/lagged_mlm/no_wcen_ar.RDS')
   wcen_ar_reps <- readRDS('~/code/lagged_mlm/wcen_ar.RDS')
   no_wcen_ylag_reps <- readRDS('~/code/lagged_mlm/no_wcen_ylag_reps.RDS')
   wcen_ylag_reps <- readRDS('~/code/lagged_mlm/wcen_ylag_reps.RDS')
+  wcen_ylag_l4_reps <- readRDS('~/code/lagged_mlm/wcen_ylag_l4_reps.RDS')
+  wcen_ylag_l4_wcenre_reps <- readRDS('~/code/lagged_mlm/wcen_ylag_l4_wcenre_reps.RDS')
 }
 
 #'
 #' # Using AR residual structure to account for stability
 #'
 
-library(ggplot2)
-no_wcen_ar_reps_df <- dplyr::bind_rows(no_wcen_ar_reps) %>%
-  group_by(n) %>%
-  mutate(fp = as.numeric(x_lag_p < .05))
+plot_results <- function(somerez){
+  library(ggplot2)
+  somerez_df <- dplyr::bind_rows(somerez) %>%
+    group_by(n) %>%
+    mutate(fp = as.numeric(x_lag_p < .05))
+  
+  somerez_df_prop_sum <- somerez_df %>%
+    group_by(n) %>%
+    mutate(fp = mean(fp),
+           fp.se = sqrt((fp * (1-fp)) / n()),
+           fp.u = fp+1.96*fp.se,
+           fp.l = fp-1.96*fp.se)
+  
+  print(ggplot(somerez_df,
+               aes(x = n, y = x_lag_bias)) + 
+          geom_hline(yintercept = 0) + 
+          geom_point(alpha = .4) +
+          geom_smooth(method = 'gam') + 
+          labs(x = 'Sample size', y = 'Estimate of effect of lagged x\n(should be 0, on average)') + 
+          theme_minimal())
+  
+  print(ggplot(somerez_df_prop_sum,
+               aes(x = n, y = fp)) +
+          geom_errorbar(aes(ymin = fp.l, ymax = fp.u), width = 0) +
+          geom_point() + 
+          geom_hline(yintercept = .05) + 
+          geom_smooth(method = 'gam', formula = y ~ s(x, k = 3, bs = 'tp', fx = FALSE),
+                      se = FALSE) +
+          coord_cartesian(ylim = c(0, .20)) +
+          scale_x_continuous(breaks = seq(30, 250, 40)) + 
+          labs(x = 'Sample size', y = 'Proportion of false positives\n(should be < .05 for all N)') + 
+          theme_minimal())
+}
 
-no_wcen_ar_reps_df_prop_sum <- no_wcen_ar_reps_df %>%
-  group_by(n) %>%
-  mutate(fp = mean(fp),
-         fp.se = sqrt((fp * (1-fp)) / n()),
-         fp.u = fp+1.96*fp.se,
-         fp.l = fp-1.96*fp.se)
-
-ggplot(no_wcen_ar_reps_df,
-       aes(x = n, y = x_lag_bias)) + 
-  geom_point(alpha = .4) +
-  geom_smooth(method = 'gam') + 
-  labs(x = 'Sample size', y = 'Estimate of effect of lagged x\n(should be 0, on average)') + 
-  theme_minimal()
-
-ggplot(no_wcen_ar_reps_df_prop_sum,
-       aes(x = n, y = fp)) +
-  geom_errorbar(aes(ymin = fp.l, ymax = fp.u), width = 0) +
-  geom_point() + 
-  geom_hline(yintercept = .05) + 
-  geom_smooth(method = 'gam', formula = y ~ s(x, k = 3, bs = 'tp', fx = FALSE),
-              se = FALSE) +
-  coord_cartesian(ylim = c(0, .50)) +
-  scale_x_continuous(breaks = seq(30, 250, 40)) + 
-  labs(x = 'Sample size', y = 'Proportion of false positives\n(should be < .05 for all N)') + 
-  theme_minimal()
+plot_results(no_wcen_ar_reps)
 
 #'
 #' What we see here is a consistent bias in the estimates of the effect of lagged x on y. As our sample size
@@ -301,36 +347,7 @@ ggplot(no_wcen_ar_reps_df_prop_sum,
 #' # Using lagged DV to account for stability
 #'
 
-
-no_wcen_ylag_reps_df <- dplyr::bind_rows(no_wcen_ylag_reps) %>%
-  group_by(n) %>%
-  mutate(fp = as.numeric(x_lag_p < .05))
-
-no_wcen_ylag_reps_df_prop_sum <- no_wcen_ylag_reps_df %>%
-  group_by(n) %>%
-  mutate(fp = mean(fp),
-         fp.se = sqrt((fp * (1-fp)) / n()),
-         fp.u = fp+1.96*fp.se,
-         fp.l = fp-1.96*fp.se)
-
-ggplot(no_wcen_ylag_reps_df,
-       aes(x = n, y = x_lag_bias)) + 
-  geom_point(alpha = .4) +
-  geom_smooth(method = 'gam') + 
-  labs(x = 'Sample size', y = 'Estimate of effect of lagged x\n(should be 0, on average)') + 
-  theme_minimal()
-
-ggplot(no_wcen_ylag_reps_df_prop_sum,
-       aes(x = n, y = fp)) +
-  geom_errorbar(aes(ymin = fp.l, ymax = fp.u), width = 0) +
-  geom_point() + 
-  geom_hline(yintercept = .05) + 
-  geom_smooth(method = 'gam', formula = y ~ s(x, k = 3, bs = 'tp', fx = FALSE),
-              se = FALSE) +
-  coord_cartesian(ylim = c(0, .50)) +
-  scale_x_continuous(breaks = seq(30, 250, 40)) + 
-  labs(x = 'Sample size', y = 'Proportion of false positives\n(should be < .05 for all N)') + 
-  theme_minimal()
+plot_results(no_wcen_ylag_reps)
 
 #'
 #' Here we see no bias in the estimate of the effect of lagged x on y, and correspondingly our error
@@ -341,35 +358,7 @@ ggplot(no_wcen_ylag_reps_df_prop_sum,
 #' # AR with within-person-centering
 #'
 
-wcen_ar_reps_df <- dplyr::bind_rows(wcen_ar_reps) %>%
-  group_by(n) %>%
-  mutate(fp = as.numeric(x_lag_p < .05))
-
-wcen_ar_reps_df_prop_sum <- wcen_ar_reps_df %>%
-  group_by(n) %>%
-  mutate(fp = mean(fp),
-         fp.se = sqrt((fp * (1-fp)) / n()),
-         fp.u = fp+1.96*fp.se,
-         fp.l = fp-1.96*fp.se)
-
-ggplot(wcen_ar_reps_df,
-       aes(x = n, y = x_lag_bias)) + 
-  geom_point(alpha = .4) +
-  geom_smooth(method = 'gam') + 
-  labs(x = 'Sample size', y = 'Estimate of effect of lagged x\n(should be 0, on average)') + 
-  theme_minimal()
-
-ggplot(wcen_ar_reps_df_prop_sum,
-       aes(x = n, y = fp)) +
-  geom_errorbar(aes(ymin = fp.l, ymax = fp.u), width = 0) +
-  geom_point() + 
-  geom_hline(yintercept = .05) + 
-  geom_smooth(method = 'gam', formula = y ~ s(x, k = 3, bs = 'tp', fx = FALSE),
-              se = FALSE) +
-  coord_cartesian(ylim = c(0, .50)) +
-  scale_x_continuous(breaks = seq(30, 250, 40)) + 
-  labs(x = 'Sample size', y = 'Proportion of false positives\n(should be < .05 for all N)') + 
-  theme_minimal()
+plot_results(wcen_ar_reps)
 
 #'
 #' Interstingly, when we within-person center the lagged x variable, we see a negative bias. This is also
@@ -380,37 +369,22 @@ ggplot(wcen_ar_reps_df_prop_sum,
 #' Note that when we within-person cetner the IV, x, we also within-person center the lagged DV, y, and include
 #' both the within- and between- person variables. If you don't do this, wow, does your error rate go up. 
 #' The error rate still seems to be a little high, but since bias is 0, this may be due to a problem with the
-#' standard errors, or the DF being used. Another possibility is that the random effects are mispecified. There is probably
-#' an answer to this in the literature but I don't know what it is. I may see how this performs using
-#' the Satterthwaite correction for degrees of freedom.
+#' standard errors, or the DF being used. Another possibility is that the random effects are mispecified. 
 #'
 
-wcen_ylag_reps_df <- dplyr::bind_rows(wcen_ylag_reps) %>%
-  group_by(n) %>%
-  mutate(fp = as.numeric(x_lag_p < .05))
+plot_results(wcen_ylag_reps)
 
-wcen_ylag_reps_df_prop_sum <- wcen_ylag_reps_df %>%
-  group_by(n) %>%
-  mutate(fp = mean(fp),
-         fp.se = sqrt((fp * (1-fp)) / n()),
-         fp.u = fp+1.96*fp.se,
-         fp.l = fp-1.96*fp.se)
+#'
+#' # Lagged y with within-person-centering, Satterthwaite correction
+#'
+#' Perhaps using the Satterthwaite correction will appropriately adjust the _p_-values.
+#' 
 
-ggplot(wcen_ylag_reps_df,
-       aes(x = n, y = x_lag_bias)) + 
-  geom_point(alpha = .4) +
-  geom_smooth(method = 'gam') + 
-  labs(x = 'Sample size', y = 'Estimate of effect of lagged x\n(should be 0, on average)') + 
-  theme_minimal()
 
-ggplot(wcen_ylag_reps_df_prop_sum,
-       aes(x = n, y = fp)) +
-  geom_errorbar(aes(ymin = fp.l, ymax = fp.u), width = 0) +
-  geom_point() + 
-  geom_hline(yintercept = .05) + 
-  geom_smooth(method = 'gam', formula = y ~ s(x, k = 3, bs = 'tp', fx = FALSE),
-              se = FALSE) +
-  coord_cartesian(ylim = c(0, .50)) +
-  scale_x_continuous(breaks = seq(30, 250, 40)) + 
-  labs(x = 'Sample size', y = 'Proportion of false positives\n(should be < .05 for all N)') + 
-  theme_minimal()
+plot_results(wcen_ylag_l4_reps)
+
+#'
+#' # Lagged y with within-person-centering, Satterthwaite correction + WCEN RE
+#'
+
+plot_results(wcen_ylag_l4_wcenre_reps)
