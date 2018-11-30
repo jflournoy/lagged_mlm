@@ -13,58 +13,144 @@ library(tidyr)
 
 
 #+echo = F, warning = F, error = F, message = F
-var_at_wave <- lapply(c('x', 'y'), paste0, 1:12)
 
-stabilityX <- paste(unlist(
-  lapply(2:length(var_at_wave[[1]]), 
-         function(i){
-           paste0(var_at_wave[[1]][i], ' ~ .7*',var_at_wave[[1]][i-1])
-         })),
-  collapse = '\n')
+make_clpm_lavaan <- function(generate = T, generating_params = list(s = .7,cl = 0,r = 1,co = .5)){
+  if(generate){
+    b <- lapply(generating_params, paste0, '*')
+  } else {
+    b <- as.list(rep('', length(generating_params)))
+    names(b) <- names(generating_params)
+  }
+  
+  var_at_wave <- lapply(c('x', 'y'), paste0, 1:12)
+  
+  stabilityX <- paste(unlist(
+    lapply(2:length(var_at_wave[[1]]), 
+           function(i){
+             paste0(var_at_wave[[1]][i], ' ~ ', b$s, var_at_wave[[1]][i-1])
+           })),
+    collapse = '\n')
+  
+  stabilityY <- paste(unlist(
+    lapply(2:length(var_at_wave[[1]]), 
+           function(i){
+             paste0(var_at_wave[[2]][i], ' ~ ', b$s, var_at_wave[[2]][i-1])
+           })),
+    collapse = '\n')
+  
+  
+  residuals <- paste(unlist(
+    lapply(var_at_wave, 
+           function(thing){
+             paste0(thing, ' ~~ ', b$r, thing)
+           })),
+    collapse = '\n')
+  
+  correlation <- paste(unlist(
+    lapply(1:length(var_at_wave[[1]]), 
+           function(i){
+             paste0(var_at_wave[[1]][i], ' ~~ ', b$co, var_at_wave[[2]][i])
+           })),
+    collapse = '\n')
+  
+  regressionsX <- paste(unlist(
+    lapply(2:length(var_at_wave[[1]]), 
+           function(i){
+             paste0(var_at_wave[[1]][i], ' ~ ', b$cl, var_at_wave[[2]][i-1])
+           })),
+    collapse = '\n')
+  
+  regressionsY <- paste(unlist(
+    lapply(2:length(var_at_wave[[1]]), 
+           function(i){
+             paste0(var_at_wave[[2]][i], ' ~ ', b$cl, var_at_wave[[1]][i-1])
+           })),
+    collapse = '\n')
+  
+  
+  generatingModel <- paste(stabilityX,
+                           stabilityY,
+                           residuals, 
+                           correlation,
+                           regressionsX,
+                           regressionsY, sep = '\n')
+  return(generatingModel)
+}
 
-stabilityY <- paste(unlist(
-  lapply(2:length(var_at_wave[[1]]), 
-         function(i){
-           paste0(var_at_wave[[2]][i], ' ~ .7*', var_at_wave[[2]][i-1])
-         })),
-  collapse = '\n')
+#generate data based on RI-CLPM
+make_riclpm_lavaan <- function(generate = T, generating_params = list(s = .7,cl = 0,r = 1,v = 1,cv = 0,co = .5)){
+  if(generate){
+    b <- lapply(generating_params, paste0, '*')
+  } else {
+    b <- as.list(rep('', length(generating_params)))
+    names(b) <- names(generating_params)
+  }
+  
+  latent_means <- paste(paste0(c('kappa =~ ', 'omega =~ '),
+                               lapply(lapply(c('x', 'y'), paste0, 1:12), 
+                                      function(vars){
+                                        paste(paste0('1*', vars), collapse = ' + ')
+                                      })), 
+                        collapse = '\n')
+  
+  intercepts <- paste(unlist(lapply(list(c('x','mu'), c('y', 'pi')),
+                                    function(pair){
+                                      lapply(1:12, function(wave){
+                                        paste0(pair[1], wave, ' ~ ', pair[2], wave, '*1')
+                                      })
+                                    })), collapse = '\n')
+  
+  latent_covar <- paste0('
+kappa ~~ ',b$v,'kappa #variance
+omega ~~ ',b$v,'omega #variance
+kappa ~~ ',b$cv,'omega #covariance')
+  
+  latent_resids <- paste(unlist(lapply(list(c('p','x'), c('q', 'y')),
+                                       function(pair){
+                                         lapply(1:12, function(wave){
+                                           paste0(pair[1], wave, ' =~ ', '1*', pair[2], wave)
+                                         })
+                                       })), collapse = '\n')
+  
+  regressions <- paste(
+    unlist(lapply(list(c('p','q'), c('q', 'p')),
+                  function(pair){
+                    lapply(12:2, function(wave){
+                      paste0(pair[1], wave, ' ~ ', b$s, pair[1], wave-1, ' + ', b$cl, pair[2], wave-1)
+                    })
+                  })), collapse = '\n')
+  
+  first_wave_varcovar <- paste0('
+p1 ~~ p1
+q1 ~~ q1
+p1 ~~ ',b$co,'q1')
+  
+  residvar <- paste(unlist(lapply(c('p','q'),
+                                  function(avar){
+                                    lapply(2:12, function(wave){
+                                      paste0(avar, wave, ' ~~ ', b$r, avar, wave)
+                                    })
+                                  })), collapse = '\n')
+  
+  contemporaneous <- paste(lapply(2:12, 
+                                  function(wave){
+                                    paste0('p', wave, ' ~~ ', b$co, 'q', wave)
+                                  }), 
+                           collapse = '\n')
+  
+  
+  generatingModel <- paste(latent_means,
+                           intercepts,
+                           latent_covar,
+                           latent_resids,
+                           regressions,
+                           first_wave_varcovar,
+                           residvar,
+                           contemporaneous, sep = '\n')
+  return(generatingModel)
+}
 
-
-residuals <- paste(unlist(
-  lapply(var_at_wave, 
-         function(thing){
-           paste0(thing, ' ~~ 1*', thing)
-         })),
-  collapse = '\n')
-
-correlation <- paste(unlist(
-  lapply(1:length(var_at_wave[[1]]), 
-         function(i){
-           paste0(var_at_wave[[1]][i], ' ~~ .5*', var_at_wave[[2]][i])
-         })),
-  collapse = '\n')
-
-regressionsX <- paste(unlist(
-  lapply(2:length(var_at_wave[[1]]), 
-         function(i){
-           paste0(var_at_wave[[1]][i], ' ~ .0*', var_at_wave[[2]][i-1])
-         })),
-  collapse = '\n')
-
-regressionsY <- paste(unlist(
-  lapply(2:length(var_at_wave[[1]]), 
-         function(i){
-           paste0(var_at_wave[[2]][i], ' ~ .0*', var_at_wave[[1]][i-1])
-         })),
-  collapse = '\n')
-
-
-generatingModel <- paste(stabilityX,
-                         stabilityY,
-                          residuals, 
-                          correlation,
-                          regressionsX,
-                          regressionsY, sep = '\n')
+generatingModel <- make_clpm_lavaan()
 
 #'
 #' We want to sample data from a null model where _x_ and _y_ are correlated over time
@@ -73,11 +159,18 @@ generatingModel <- paste(stabilityX,
 #' is as expected (that is, that if we set $\alpha=.05$ we're actually controlling or error rate at
 #' 5%). I've created a model that has _x_ and _y_ observed at 12 occasions, with x and y having high stability
 #' (.7) and being somewhat correlated (.3).  
+#' 
+#' ![](https://jflournoy.github.io/figs/riclpm-lavaan-demo/hamaker-diagram.png)
 #'
 #+echo = T
-someData <- simulateData(model=generatingModel, sample.nobs=250, empirical=T)
-fit.DGM <- sem(generatingModel, someData, fixed.x=F)
-semPaths(fit.DGM, what='est', rotation=2, exoCov=T, exoVar=T, layout = 'tree2', residuals = F)
+someData <- simulateData(model=generatingModel, sample.nobs=250, empirical=T,
+                         auto.fix.first = FALSE, auto.var = FALSE, auto.fix.single = FALSE,
+                         auto.cov.lv.x = FALSE, auto.cov.y = FALSE)
+fit.DGM <- lavaan(make_clpm_lavaan(generate = F), someData, fixed.x=F)
+semPaths(fit.DGM, what='est', rotation=2, exoCov=T, exoVar=T, layout = 'tree2',
+         residuals = F, structural = F, sizeLat = 3, sizeMan = 3, sizeMan2 = 2, 
+         intercepts = F, layoutSplit = F, bifactor = c('omega', 'kappa', paste0('q', 1:12)))
+# summary(fit.DGM, standardize=T)
 
 someData_long <- someData %>% 
   mutate(id = 1:n()) %>%
@@ -85,10 +178,23 @@ someData_long <- someData %>%
   extract(key, c('var', 'wave'), '(x|y)(\\d+)') %>%
   spread(var, value) %>%
   mutate(wave = as.numeric(wave)) %>%
-  arrange(id, wave) %>%
+  arrange(id, wave)
+
+someData_long$gmean_x <- mean(someData_long$x)
+someData_long$gmean_y <- mean(someData_long$y)
+
+someData_long <- someData_long %>%
   group_by(id) %>%
   mutate(x_lag = lag(x),
-         y_lag = lag(y))
+         y_lag = lag(y),
+         id_mean_x = mean(x),
+         wcen_x = x - id_mean_x,
+         gcen_x = id_mean_x - gmean_x,
+         wcen_x_lag = lag(wcen_x),
+         id_mean_y = mean(y),
+         wcen_y = y - id_mean_y,
+         gcen_y = id_mean_y - gmean_y,
+         wcen_y_lag = lag(wcen_y))
 
 #'
 #' Now we can see what happens if we predict y_{t} from x_{t-1} without accounting for previous
@@ -120,7 +226,8 @@ summary(lag1.ylag.xcor)
 #' Interestingly, when we add in contemporaneous values for x, we see the true 
 #' correlation from the generating model, but we also see an induced negative
 #' effect of x_lag on y. This is because we are not accounting for the fact that 
-#' x and x_lag are correlated.
+#' x and x_lag are correlated. We should really be regressing y on x _after_
+#' partialling out the variance in x due to x_lag. 
 #' 
 #' Can we use the residual autocorrelation in place of y_lag?
 #'
@@ -133,10 +240,13 @@ summary(lag1.yAR)
 #'
 #' Including the residual AR stucture helps, but we still see a positive
 #' estimate for the effect of x_lag. Since we're working with data that reflects
-#' exaclty the data generating model, this is cause for concern. How
+#' exaclty the data generating model, we should get exactly the same numbers that
+#' we put in -- so this positive estimate  is cause for concern. How
 #' much does this inflate our false positive rate if we sample
-#' randomly from the data generating model?
+#' randomly from the data generating model (as we do when we run a study)?
 #' 
+#' 
+#' # Numerous simulations
 
 generate_data <- function(n = 250, gen_mod, wcen = FALSE){
   someData <- simulateData(model=gen_mod, sample.nobs=n, empirical=F)
@@ -220,52 +330,54 @@ run_model <- function(n = 250, gen_mod, wcen = FALSE, use_lag_y = FALSE, use_lme
   return(data.frame(n = n, x_lag_p = x_lag_p, x_lag_bias = x_lag_bias))
 }
 
-reps_per_n = 400
+reps_per_n = 1e3
 rerun = FALSE
+N_seq = seq(30, 270, 40)
+cores = 7
 
 if(rerun){
   library(parallel)
-  system.time(no_wcen_ar_reps <- mclapply(seq(30, 250, 40),
+  system.time(no_wcen_ar_reps <- mclapply(N_seq,
                                        function(n) {
                                          somereps <- dplyr::bind_rows(
                                            replicate(reps_per_n,
                                                      run_model(n, generatingModel, wcen = F),
                                                      simplify = F))
                                          return(somereps)
-                                       }, mc.cores = detectCores()))
-  saveRDS(no_wcen_ar_reps, '~/code/lagged_mlm/no_wcen_ar.RDS')
+                                       }, mc.cores = cores))
+  saveRDS(no_wcen_ar_reps, 'no_wcen_ar.RDS')
   
-  system.time(wcen_ar_reps <- mclapply(seq(30, 250, 40),
+  system.time(wcen_ar_reps <- mclapply(N_seq,
                                      function(n) {
                                        somereps <- dplyr::bind_rows(
                                          replicate(reps_per_n,
                                                    run_model(n, generatingModel, wcen = T),
                                                    simplify = F))
                                        return(somereps)
-                                     }, mc.cores = detectCores()))
-  saveRDS(wcen_ar_reps, '~/code/lagged_mlm/wcen_ar.RDS')
+                                     }, mc.cores = cores))
+  saveRDS(wcen_ar_reps, 'wcen_ar.RDS')
   
-  system.time(no_wcen_ylag_reps <- mclapply(seq(30, 250, 40),
+  system.time(no_wcen_ylag_reps <- mclapply(N_seq,
                                           function(n) {
                                             somereps <- dplyr::bind_rows(
                                               replicate(reps_per_n,
                                                         run_model(n, generatingModel, wcen = F, use_lag_y = T),
                                                         simplify = F))
                                             return(somereps)
-                                          }, mc.cores = detectCores()))
-  saveRDS(no_wcen_ylag_reps, '~/code/lagged_mlm/no_wcen_ylag_reps.RDS')
+                                          }, mc.cores = cores))
+  saveRDS(no_wcen_ylag_reps, 'no_wcen_ylag_reps.RDS')
   
-  system.time(wcen_ylag_reps <- mclapply(seq(30, 250, 40),
+  system.time(wcen_ylag_reps <- mclapply(N_seq,
                                        function(n) {
                                          somereps <- dplyr::bind_rows(
                                            replicate(reps_per_n,
                                                      run_model(n, generatingModel, wcen = T, use_lag_y = T),
                                                      simplify = F))
                                          return(somereps)
-                                       }, mc.cores = detectCores()))
-  saveRDS(wcen_ylag_reps, '~/code/lagged_mlm/wcen_ylag_reps.RDS')
+                                       }, mc.cores = cores))
+  saveRDS(wcen_ylag_reps, 'wcen_ylag_reps.RDS')
   
-  system.time(wcen_ylag_l4_reps <- mclapply(seq(30, 250, 40),
+  system.time(wcen_ylag_l4_reps <- mclapply(N_seq,
                                             function(n) {
                                               somereps <- dplyr::bind_rows(
                                                 replicate(reps_per_n,
@@ -273,10 +385,10 @@ if(rerun){
                                                                     use_lme4 = T, wcen_re = F),
                                                           simplify = F))
                                               return(somereps)
-                                            }, mc.cores = detectCores()))
-  saveRDS(wcen_ylag_l4_reps, '~/code/lagged_mlm/wcen_ylag_l4_reps.RDS')
+                                            }, mc.cores = cores))
+  saveRDS(wcen_ylag_l4_reps, 'wcen_ylag_l4_reps.RDS')
   
-  system.time(wcen_ylag_l4_wcenre_reps <- mclapply(seq(30, 250, 40),
+  system.time(wcen_ylag_l4_wcenre_reps <- mclapply(N_seq,
                                                    function(n) {
                                                      somereps <- dplyr::bind_rows(
                                                        replicate(reps_per_n,
@@ -284,22 +396,22 @@ if(rerun){
                                                                            use_lme4 = T, wcen_re = T),
                                                                  simplify = F))
                                                      return(somereps)
-                                                   }, mc.cores = detectCores()))
-  saveRDS(wcen_ylag_l4_wcenre_reps, '~/code/lagged_mlm/wcen_ylag_l4_wcenre_reps.RDS')
+                                                   }, mc.cores = cores))
+  saveRDS(wcen_ylag_l4_wcenre_reps, 'wcen_ylag_l4_wcenre_reps.RDS')
 } else {
-  no_wcen_ar_reps <- readRDS('~/code/lagged_mlm/no_wcen_ar.RDS')
-  wcen_ar_reps <- readRDS('~/code/lagged_mlm/wcen_ar.RDS')
-  no_wcen_ylag_reps <- readRDS('~/code/lagged_mlm/no_wcen_ylag_reps.RDS')
-  wcen_ylag_reps <- readRDS('~/code/lagged_mlm/wcen_ylag_reps.RDS')
-  wcen_ylag_l4_reps <- readRDS('~/code/lagged_mlm/wcen_ylag_l4_reps.RDS')
-  wcen_ylag_l4_wcenre_reps <- readRDS('~/code/lagged_mlm/wcen_ylag_l4_wcenre_reps.RDS')
+  no_wcen_ar_reps <- readRDS('no_wcen_ar.RDS')
+  wcen_ar_reps <- readRDS('wcen_ar.RDS')
+  no_wcen_ylag_reps <- readRDS('no_wcen_ylag_reps.RDS')
+  wcen_ylag_reps <- readRDS('wcen_ylag_reps.RDS')
+  wcen_ylag_l4_reps <- readRDS('wcen_ylag_l4_reps.RDS')
+  wcen_ylag_l4_wcenre_reps <- readRDS('wcen_ylag_l4_wcenre_reps.RDS')
 }
 
 #'
 #' # Using AR residual structure to account for stability
 #'
 
-plot_results <- function(somerez){
+plot_results <- function(somerez, max_fp = .20){
   library(ggplot2)
   somerez_df <- dplyr::bind_rows(somerez) %>%
     group_by(n) %>%
@@ -314,8 +426,9 @@ plot_results <- function(somerez){
   
   print(ggplot(somerez_df,
                aes(x = n, y = x_lag_bias)) + 
+          geom_violin(aes(group = n)) + 
           geom_hline(yintercept = 0) + 
-          geom_point(alpha = .4) +
+          geom_point(alpha = .2, position = position_jitter(width = 2)) +
           geom_smooth(method = 'gam') + 
           labs(x = 'Sample size', y = 'Estimate of effect of lagged x\n(should be 0, on average)') + 
           theme_minimal())
@@ -327,13 +440,13 @@ plot_results <- function(somerez){
           geom_hline(yintercept = .05) + 
           geom_smooth(method = 'gam', formula = y ~ s(x, k = 3, bs = 'tp', fx = FALSE),
                       se = FALSE) +
-          coord_cartesian(ylim = c(0, .20)) +
+          coord_cartesian(ylim = c(0, max_fp)) +
           scale_x_continuous(breaks = seq(30, 250, 40)) + 
           labs(x = 'Sample size', y = 'Proportion of false positives\n(should be < .05 for all N)') + 
           theme_minimal())
 }
 
-plot_results(no_wcen_ar_reps)
+plot_results(no_wcen_ar_reps, max_fp = 1)
 
 #'
 #' What we see here is a consistent bias in the estimates of the effect of lagged x on y. As our sample size
@@ -368,7 +481,7 @@ plot_results(wcen_ar_reps)
 #' 
 #' Note that when we within-person cetner the IV, x, we also within-person center the lagged DV, y, and include
 #' both the within- and between- person variables. If you don't do this, wow, does your error rate go up. 
-#' The error rate still seems to be a little high, but since bias is 0, this may be due to a problem with the
+#' The error rate is still high, but since bias is 0, this may be due to a problem with the
 #' standard errors, or the DF being used. Another possibility is that the random effects are mispecified. 
 #'
 
