@@ -162,7 +162,7 @@ generatingModel <- make_clpm_lavaan()
 #' we're implicitly testing against, so we need to know that our procedure's error rate performance
 #' is as expected (that is, that if we set $\alpha=.05$ we're actually controlling or error rate at
 #' 5%). I've created a model that has _x_ and _y_ observed at 12 occasions, with x and y having high stability
-#' (.7) and being somewhat correlated (.3).  
+#' (.7) and being somewhat correlated (.5).  
 #' 
 #'
 #+echo = T
@@ -200,7 +200,7 @@ someData_long <- someData_long %>%
          wcen_y_lag = lag(wcen_y))
 
 #'
-#' Now we can see what happens if we predict y_{t} from x_{t-1} without accounting for previous
+#' Now we can see what happens if we predict $y_{t}$ from $x_{t-1}$ without accounting for previous
 #' levels of y.
 #' 
 
@@ -462,7 +462,7 @@ plot_results(no_wcen_ar_reps, max_fp = 1)
 #'
 #' What we see here is a consistent bias in the estimates of the effect of lagged x on y. As our sample size
 #' increases, we are better and better powered, which means we erroneously reject the null more often due
-#' to this bias. In other words, if we are powered to detect an effect of lagged x and y, we are powered to
+#' to this bias. In other words, if we are powered to detect an effect of lagged x on y, we are powered to
 #' mistake this bias for a causal effect, even using the AR structure
 #' to adjust for the stability of y.
 #'
