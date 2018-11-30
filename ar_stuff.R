@@ -1,5 +1,9 @@
 #'---
 #' author: John Flournoy
+#' output: 
+#'   html_document:
+#'     toc: true
+#'     toc_float: true
 #'---
 
 #+echo = T, warning = F, error = F, message = F
@@ -160,7 +164,6 @@ generatingModel <- make_clpm_lavaan()
 #' 5%). I've created a model that has _x_ and _y_ observed at 12 occasions, with x and y having high stability
 #' (.7) and being somewhat correlated (.3).  
 #' 
-#' ![](https://jflournoy.github.io/figs/riclpm-lavaan-demo/hamaker-diagram.png)
 #'
 #+echo = T
 someData <- simulateData(model=generatingModel, sample.nobs=250, empirical=T,
@@ -410,7 +413,14 @@ if(rerun){
 #'
 #' # Using AR residual structure to account for stability
 #'
+#' ```
+#' lag1.yAR <-lme(y ~ 1 + x_lag, random = ~ 1 | id, data = someData_long,
+#'                correlation = corAR1(form = ~ wave | id),
+#'                na.action = na.omit)
+#' ```
+#'
 
+#+echo = F
 plot_results <- function(somerez, max_fp = .20){
   library(ggplot2)
   somerez_df <- dplyr::bind_rows(somerez) %>%
@@ -441,11 +451,12 @@ plot_results <- function(somerez, max_fp = .20){
           geom_smooth(method = 'gam', formula = y ~ s(x, k = 3, bs = 'tp', fx = FALSE),
                       se = FALSE) +
           coord_cartesian(ylim = c(0, max_fp)) +
-          scale_x_continuous(breaks = seq(30, 250, 40)) + 
+          scale_x_continuous(breaks = N_seq) + 
           labs(x = 'Sample size', y = 'Proportion of false positives\n(should be < .05 for all N)') + 
           theme_minimal())
 }
 
+#+echo = T
 plot_results(no_wcen_ar_reps, max_fp = 1)
 
 #'
@@ -459,6 +470,11 @@ plot_results(no_wcen_ar_reps, max_fp = 1)
 #'
 #' # Using lagged DV to account for stability
 #'
+#' ```
+#' lag1.yAR <-lme(y ~ 1 + y_lag + x_lag, random = ~ 1 | id, data = someData_long,
+#'                na.action = na.omit)
+#' ```
+#' 
 
 plot_results(no_wcen_ylag_reps)
 
@@ -466,9 +482,25 @@ plot_results(no_wcen_ylag_reps)
 #' Here we see no bias in the estimate of the effect of lagged x on y, and correspondingly our error
 #' rate is controlled appropriately.
 #'
-
+#'
 #'
 #' # AR with within-person-centering
+#' 
+#' We might want to create separate IVs for the within-person versus the between-person effect. In this
+#' example, I've created a variable that is just each person's mean across all waves, centered at the 
+#' group mean (gcen) and a within-person variable that is each person's score at a wave minus their mean.
+#' 
+#' This is in line with the advice in:
+#' 
+#' >Wang, L. (Peggy), & Maxwell, S. E. (2015). On disaggregating between-person and within-person effects 
+#' with longitudinal data using multilevel models. Psychological Methods, 20(1), 63–83. 
+#' https://doi.org/10.1037/met0000030
+#'
+#' ```
+#' lag1.yAR <-lme(y ~ 1 + wcen_x_lag + gcen_x, random = ~ 1 | id, data = someData_long,
+#'                correlation = corAR1(form = ~ wave | id),
+#'                na.action = na.omit)
+#' ```
 #'
 
 plot_results(wcen_ar_reps)
@@ -479,25 +511,59 @@ plot_results(wcen_ar_reps)
 #'
 #' # Lagged y with within-person-centering
 #' 
-#' Note that when we within-person cetner the IV, x, we also within-person center the lagged DV, y, and include
-#' both the within- and between- person variables. If you don't do this, wow, does your error rate go up. 
-#' The error rate is still high, but since bias is 0, this may be due to a problem with the
-#' standard errors, or the DF being used. Another possibility is that the random effects are mispecified. 
+#' Note that when we within-person center the IV, x, we also within-person center the lagged DV, y, and include
+#' both the within- and between- person variables. If you don't do this, wow, the false positive error rate goes 
+#' way up. I'm not quite sure why this is (simulations not shown).
+#' 
+#' ```
+#' lag1.yAR <-lme(y ~ 1 + wcen_y_lag + gcen_y + wcen_x_lag + gcen_x, random = ~ 1 | id, data = someData_long,
+#'                na.action = na.omit) 
+#' ```
 #'
 
 plot_results(wcen_ylag_reps)
 
 #'
+#' The error rate in this case is still higher than the nominal rate, but since bias is 0, this may be due to a problem with the
+#' standard errors, or the DF being used. Perhaps another possibility is that the random effects are mispecified. I'm not
+#' sure why this is, but we can test whether using the Satterthwaite correction, or including a random effect of the within-person
+#' predictor helps.
+#'
+#'
 #' # Lagged y with within-person-centering, Satterthwaite correction
 #'
 #' Perhaps using the Satterthwaite correction will appropriately adjust the _p_-values.
 #' 
-
+#' ```
+#' lag1.yAR <-lmer(y ~ 1 + wcen_y_lag + gcen_y + wcen_x_lag + gcen_x + (1 | id), data = someData_long,
+#'                REML = TRUE,
+#'                na.action = na.omit)
+#' summary(lag1.yAR, ddf = 'Satterthwaite')
+#' ```
+#' 
 
 plot_results(wcen_ylag_l4_reps)
 
 #'
+#' Bummer. Still a higher than expected error rate.
+#'
 #' # Lagged y with within-person-centering, Satterthwaite correction + WCEN RE
 #'
+#' The last thing I'll try is to add the within-person centered lagged predictor as random effect.
+#'
+#' ```
+#' lag1.yAR <-lmer(y ~ 1 + wcen_y_lag + gcen_y + wcen_x_lag + gcen_x + (1 + wcen_x_lag || id), data = someData_long,
+#'                REML = TRUE,
+#'                na.action = na.omit)
+#' summary(lag1.yAR, ddf = 'Satterthwaite')
+#' ```
+#' 
 
 plot_results(wcen_ylag_l4_wcenre_reps)
+
+#'
+#' That looks like it helped a little bit, but it also seems to induce a small negative bias.
+#' 
+#' # What's going on?
+#' 
+#' 
