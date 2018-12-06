@@ -18,6 +18,7 @@ library(tidyr)
 
 #+echo = F, warning = F, error = F, message = F
 
+
 make_clpm_lavaan <- function(generate = T, generating_params = list(s = .7,cl = 0,r = 1,co = .5)){
   if(generate){
     b <- lapply(generating_params, paste0, '*')
@@ -220,19 +221,7 @@ summary(lag1.ylag)
 #'
 #' Once we control for lagged y, which is the true causal effect, we see that lagged x does not have an influence on y
 #' 
-
-lag1.ylag.xcor <- lme(y ~ 1 + y_lag + x_lag + x, random = ~ 1 | id, data = someData_long,
-                 na.action = na.omit)
-summary(lag1.ylag.xcor)
-
-#'
-#' Interestingly, when we add in contemporaneous values for x, we see the true 
-#' correlation from the generating model, but we also see an induced negative
-#' effect of x_lag on y. This is because we are not accounting for the fact that 
-#' x and x_lag are correlated. We should really be regressing y on x _after_
-#' partialling out the variance in x due to x_lag. 
-#' 
-#' Can we use the residual autocorrelation in place of y_lag?
+#' Can we use the residual autocorrelation structure in place of y_lag?
 #'
 
 lag1.yAR <-lme(y ~ 1 + x_lag, random = ~ 1 | id, data = someData_long,
@@ -248,6 +237,25 @@ summary(lag1.yAR)
 #' much does this inflate our false positive rate if we sample
 #' randomly from the data generating model (as we do when we run a study)?
 #' 
+
+#'
+#' If we're just estimating contemporaneous effects without allowing for possible lagged causes
+#' what do we get?
+#'
+
+cont1.y <-lme(y ~ 1 + x, random = ~ 1 | id, data = someData_long,
+              na.action = na.omit)
+summary(cont1.y) 
+
+cont1.yAR <-lme(y ~ 1 + x, random = ~ 1 | id, data = someData_long,
+               correlation = corAR1(form = ~ wave | id),
+               na.action = na.omit)
+summary(cont1.yAR) 
+
+#'
+#' This looks right, 'cause this is very close to the generating model with no possible confounds.
+#'
+
 #' 
 #' # Numerous simulations
 
