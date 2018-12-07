@@ -341,10 +341,10 @@ run_model <- function(n = 250, gen_mod, wcen = FALSE, use_lag_y = FALSE, use_lme
   return(data.frame(n = n, x_lag_p = x_lag_p, x_lag_bias = x_lag_bias))
 }
 
-reps_per_n = 1e3
-rerun = FALSE
-N_seq = seq(30, 270, 40)
-cores = 7
+reps_per_n = 1e4
+rerun = TRUE
+N_seq = c(seq(30, 150, 40), seq(300, 1050, 150))
+cores = 10
 
 if(rerun){
   library(parallel)
