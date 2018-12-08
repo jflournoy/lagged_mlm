@@ -15,6 +15,12 @@ library(semPlot)
 library(dplyr)
 library(tidyr)
 
+reps_per_n = 1e4
+rerun = FALSE
+N_seq = c(seq(30, 150, 40), seq(300, 1050, 150))
+cores = 10
+
+# install.packages(c('simsem', 'nlme', 'lmerTest', 'lme4', 'semPlot', 'dplyr', 'tidyr'))
 
 #+echo = F, warning = F, error = F, message = F
 
@@ -298,22 +304,24 @@ run_model <- function(n = 250, gen_mod, wcen = FALSE, use_lag_y = FALSE, use_lme
     if(use_lag_y){
       if(use_lme4){
         if(wcen_re){
-          lag1.yAR <-lmer(y ~ 1 + wcen_y_lag + gcen_y + wcen_x_lag + gcen_x + (1 + wcen_x_lag || id), data = someData_long,
+          lag1.yAR <-lmer(y ~ 1 + wcen_y_lag + wcen_x_lag + gcen_x + (1 + wcen_x_lag || id), data = someData_long,
                           REML = TRUE,
                           na.action = na.omit)
         } else {
-          lag1.yAR <-lmer(y ~ 1 + wcen_y_lag + gcen_y + wcen_x_lag + gcen_x + (1 | id), data = someData_long,
+          lag1.yAR <-lmer(y ~ 1 + wcen_y_lag + wcen_x_lag + gcen_x + (1 | id), data = someData_long,
                           REML = TRUE,
                           na.action = na.omit)
         }
       } else {
-        lag1.yAR <-lme(y ~ 1 + wcen_y_lag + gcen_y + wcen_x_lag + gcen_x, random = ~ 1 | id, data = someData_long,
-                       na.action = na.omit) 
+        lag1.yAR <-lme(y ~ 1 + wcen_y_lag + wcen_x_lag + gcen_x, random = ~ 1 | id, data = someData_long,
+                       na.action = na.omit,
+                       control=lmeControl(opt = "optim")) 
       }
     } else {
       lag1.yAR <-lme(y ~ 1 + wcen_x_lag + gcen_x, random = ~ 1 | id, data = someData_long,
                      correlation = corAR1(form = ~ wave | id),
-                     na.action = na.omit)
+                     na.action = na.omit,
+                     control=lmeControl(opt = "optim"))
     }
     if(use_lme4){
       asum <- coef(summary(lag1.yAR, ddf = 'Satterthwaite'))
@@ -340,11 +348,6 @@ run_model <- function(n = 250, gen_mod, wcen = FALSE, use_lag_y = FALSE, use_lme
   }
   return(data.frame(n = n, x_lag_p = x_lag_p, x_lag_bias = x_lag_bias))
 }
-
-reps_per_n = 1e4
-rerun = TRUE
-N_seq = c(seq(30, 150, 40), seq(300, 1050, 150))
-cores = 10
 
 if(rerun){
   library(parallel)
@@ -429,39 +432,58 @@ if(rerun){
 #'
 
 #+echo = F
-plot_results <- function(somerez, max_fp = .20){
+plot_results <- function(somerez, max_fp = .20, plot_points = FALSE, which = c('both', 'bias', 'error')){
   library(ggplot2)
+  somerez <- lapply(somerez, function(arez){
+    if(inherits(arez, what = 'try-error')){
+      return(NULL)
+    } else {
+      return(arez)
+    }
+  })
   somerez_df <- dplyr::bind_rows(somerez) %>%
     group_by(n) %>%
     mutate(fp = as.numeric(x_lag_p < .05))
   
   somerez_df_prop_sum <- somerez_df %>%
     group_by(n) %>%
-    mutate(fp = mean(fp),
+    summarize(fp = mean(fp),
            fp.se = sqrt((fp * (1-fp)) / n()),
            fp.u = fp+1.96*fp.se,
            fp.l = fp-1.96*fp.se)
   
-  print(ggplot(somerez_df,
-               aes(x = n, y = x_lag_bias)) + 
-          geom_violin(aes(group = n)) + 
-          geom_hline(yintercept = 0) + 
-          geom_point(alpha = .2, position = position_jitter(width = 2)) +
-          geom_smooth(method = 'gam') + 
-          labs(x = 'Sample size', y = 'Estimate of effect of lagged x\n(should be 0, on average)') + 
-          theme_minimal())
-  
-  print(ggplot(somerez_df_prop_sum,
-               aes(x = n, y = fp)) +
-          geom_errorbar(aes(ymin = fp.l, ymax = fp.u), width = 0) +
-          geom_point() + 
-          geom_hline(yintercept = .05) + 
-          geom_smooth(method = 'gam', formula = y ~ s(x, k = 3, bs = 'tp', fx = FALSE),
-                      se = FALSE) +
-          coord_cartesian(ylim = c(0, max_fp)) +
-          scale_x_continuous(breaks = N_seq) + 
-          labs(x = 'Sample size', y = 'Proportion of false positives\n(should be < .05 for all N)') + 
-          theme_minimal())
+  if(which[[1]] %in% c('both', 'bias')){
+    biasplot <- ggplot(somerez_df,
+                       aes(x = n, y = x_lag_bias)) + 
+      geom_violin(aes(group = n)) + 
+      geom_hline(yintercept = 0)
+    if(plot_points){
+      biasplot <- biasplot +
+        geom_point(alpha = .2, position = position_jitter(width = 2))  
+    } else {
+      biasplot <- biasplot +
+        geom_boxplot(alpha = 0, size = .5, aes(group = factor(n)), width = 25)
+    }
+    biasplot <- biasplot + 
+      geom_smooth(method = 'gam', size = .75) + 
+      labs(x = 'Sample size', y = 'Estimate of effect of lagged x\n(should be 0, on average)') + 
+      theme_minimal()
+    
+    print(biasplot)
+  }
+  if(which[[1]] %in% c('both', 'error')){
+    print(ggplot(somerez_df_prop_sum,
+                 aes(x = n, y = fp)) +
+            geom_errorbar(aes(ymin = fp.l, ymax = fp.u), width = 0) +
+            geom_point() + 
+            geom_hline(yintercept = .05) + 
+            geom_smooth(method = 'gam', formula = y ~ s(x, k = 3, bs = 'tp', fx = FALSE),
+                        se = FALSE) +
+            coord_cartesian(ylim = c(0, max_fp)) +
+            scale_x_continuous(breaks = N_seq) + 
+            labs(x = 'Sample size', y = 'Proportion of false positives\n(should be < .05 for all N)') + 
+            theme_minimal())
+  }
 }
 
 #+echo = T
@@ -519,12 +541,12 @@ plot_results(wcen_ar_reps)
 #'
 #' # Lagged y with within-person-centering
 #' 
-#' Note that when we within-person center the IV, x, we also within-person center the lagged DV, y, and include
-#' both the within- and between- person variables. If you don't do this, wow, the false positive error rate goes 
-#' way up. I'm not quite sure why this is (simulations not shown).
+#' Note that when we within-person center the IV, x, we also within-person center the lagged DV, y, and include that (the 
+#' between-person component of y is redundant with the random intercept. If you don't do this, wow, the false positive 
+#' error rate goes way up. I'm not quite sure why this is (simulations not shown).
 #' 
 #' ```
-#' lag1.yAR <-lme(y ~ 1 + wcen_y_lag + gcen_y + wcen_x_lag + gcen_x, random = ~ 1 | id, data = someData_long,
+#' lag1.yAR <-lme(y ~ 1 + wcen_y_lag + wcen_x_lag + gcen_x, random = ~ 1 | id, data = someData_long,
 #'                na.action = na.omit) 
 #' ```
 #'
@@ -543,7 +565,7 @@ plot_results(wcen_ylag_reps)
 #' Perhaps using the Satterthwaite correction will appropriately adjust the _p_-values.
 #' 
 #' ```
-#' lag1.yAR <-lmer(y ~ 1 + wcen_y_lag + gcen_y + wcen_x_lag + gcen_x + (1 | id), data = someData_long,
+#' lag1.yAR <-lmer(y ~ 1 + wcen_y_lag + wcen_x_lag + gcen_x + (1 | id), data = someData_long,
 #'                REML = TRUE,
 #'                na.action = na.omit)
 #' summary(lag1.yAR, ddf = 'Satterthwaite')
@@ -560,7 +582,7 @@ plot_results(wcen_ylag_l4_reps)
 #' The last thing I'll try is to add the within-person centered lagged predictor as random effect.
 #'
 #' ```
-#' lag1.yAR <-lmer(y ~ 1 + wcen_y_lag + gcen_y + wcen_x_lag + gcen_x + (1 + wcen_x_lag || id), data = someData_long,
+#' lag1.yAR <-lmer(y ~ 1 + wcen_y_lag + wcen_x_lag + gcen_x + (1 + wcen_x_lag || id), data = someData_long,
 #'                REML = TRUE,
 #'                na.action = na.omit)
 #' summary(lag1.yAR, ddf = 'Satterthwaite')
