@@ -16,7 +16,7 @@ library(dplyr)
 library(tidyr)
 
 reps_per_n = 1e4
-rerun = FALSE
+rerun = TRUE
 N_seq = c(seq(30, 150, 40), seq(300, 1050, 150))
 cores = 10
 
