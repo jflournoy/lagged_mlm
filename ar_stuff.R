@@ -465,7 +465,7 @@ plot_results <- function(somerez, max_fp = .20, plot_points = FALSE, which = c('
         geom_boxplot(alpha = 0, size = .5, aes(group = factor(n)), width = 25)
     }
     biasplot <- biasplot + 
-      geom_smooth(method = 'gam', size = .75) + 
+      geom_smooth(method = 'gam', formula = y ~ s(x, k = 3, bs = 'tp', fx = FALSE), size = .75) + 
       labs(x = 'Sample size', y = 'Estimate of effect of lagged x\n(should be 0, on average)') + 
       theme_minimal()
     
