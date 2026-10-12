@@ -596,4 +596,134 @@ plot_results(wcen_ylag_l4_wcenre_reps)
 #' 
 #' # What's going on?
 #' 
+#' The problem with the naive model is an ordinary omitted-variable problem, just one that is easy to
+#' miss because the omitted variable is the outcome itself, one wave earlier. In the generating model
+#' $y_{t-1}$ causes $y_{t}$ (stability of .7), and $x_{t-1}$ is correlated with $y_{t-1}$ (they share
+#' correlated residuals, at .5), so there is an open path from $x_{t-1}$ to $y_{t}$ that runs through
+#' $y_{t-1}$ and has nothing to do with $x$ causing $y$. Starting from wave 1, where both variances are 1
+#' and the correlation is .5, the covariance of $y_{2}$ with $x_{1}$ is .7 × .5 = .35, and a regression of
+#' $y_{t}$ on $x_{t-1}$ that does not condition on $y_{t-1}$ reads that covariance as an effect. It is also worth noticing what
+#' the random intercept is doing in that model. There are no stable between-person differences in this
+#' generating model (it is a CLPM, with no trait component), and yet the naive model above estimates a
+#' random-intercept SD of .69 (against a residual SD of 1.09), which falls to .04 once $y_{t-1}$ is in
+#' the model. Twelve waves of a process with stability .7 make people look as though they differ in
+#' their typical level, because someone who happens to start high stays high for a while; the random
+#' intercept absorbs some of that apparent stability, $x_{t-1}$ picks up a good deal of the rest, and
+#' neither one is a substitute for conditioning on where $y$ actually was last wave.
 #' 
+#' The AR(1) residual structure gets surprisingly close (in the single data set above it takes the
+#' estimate from .28 to .03), but it is a model of the errors rather than a predictor, and it does not
+#' quite close the path. My best guess at why (supported by a quick side simulation, not shown) is each
+#' person's first observation. Fitting AR(1) errors amounts to quasi-differencing, i.e., regressing
+#' $y_{t} - \phi y_{t-1}$ on $x_{t-1} - \phi x_{t-2}$, and with $\phi$ near .7 that removes the
+#' $y_{t-1}$ pathway from every row except the first one for each person, which has nothing earlier to
+#' difference against and so enters as the naive regression of $y_{2}$ on $x_{1}$, confound and all. On
+#' top of that, $\phi$ is estimated rather than known, and it comes in a little under .7 (.68 in the
+#' example above), which leaves a sliver of $y_{t-1}$ in the other rows too. The important thing about
+#' this bias is that it is a property of each person's series (one contaminated row in eleven), not of
+#' the sample size, so it does not shrink as $N$ grows. That is what the simulations show: the average
+#' estimate sits at about .03 from $N$ = 30 to $N$ = 750, and the false-positive rate climbs from .11 to
+#' .72 over the same range (see the tables below), because the standard error keeps shrinking around an
+#' estimate that is not centered on zero.
+#' 
+#' That pattern turns out to be a fairly useful diagnostic for the other specifications. A constant
+#' bias produces a false-positive rate that rises with $N$; a false-positive rate that is inflated but
+#' flat across $N$, with an average estimate at zero, points instead to standard errors (or degrees of
+#' freedom) that are too optimistic. With 10,000 replications per cell, the Monte Carlo standard error
+#' of a false-positive rate near .05 is about .002, so differences of a percentage point or so are real.
+#' Reading the tables with that in mind:
+#' 
+#' - Including lagged $y$ as a predictor, with no centering, is the only specification that holds the
+#'   error rate at the nominal level: .049 to .055 for $N$ from 30 to 600, with average estimates within
+#'   .001 of zero.
+#' - Within-person centering with AR(1) residuals swaps the positive bias for a small negative one
+#'   (about −.009, steady across $N$), and the false-positive rate rises accordingly, from .06 at
+#'   $N$ = 30 to .155 at $N$ = 900.
+#' - Within-person centering with lagged $y$ leaves the average estimate within .001 of zero, but the false-positive rate sits
+#'   between about .074 and .083 at every $N$, with or without the Satterthwaite correction. Because it does not
+#'   move between $N$ = 30 and $N$ = 1050, where the degrees of freedom number in the thousands, a
+#'   small-sample degrees-of-freedom problem seems unlikely to be the explanation, which is presumably why
+#'   Satterthwaite does not help.
+#' - Adding a random slope for the centered lagged $x$ brings the false-positive rate down at small $N$
+#'   (.054 at $N$ = 30), but it introduces a small negative bias (about −.004), and the rate creeps up
+#'   with $N$ (to about .075 to .078 at the largest samples), which is the signature of bias rather than
+#'   of bad standard errors.
+#' 
+#' I do not have a settled account of why person-mean centering misbehaves here, so what follows is
+#' speculative. The person means are computed from all 12 waves, including $y_{t}$ and everything after
+#' it, so the centered lagged predictors are correlated with the current residual; this is the
+#' short-panel problem econometricians call Nickell bias, and with only 12 waves it would not be
+#' expected to wash out. Another, perhaps contributing, possibility is that the generating model is not
+#' stationary: every residual variance (including wave 1) is fixed at 1, so the variances of $x$ and
+#' $y$ grow from 1 toward about 1.96 (i.e., 1/(1 − .7²)) over the first several waves, and none of the
+#' fitted models allow the variance to change across waves. Neither of these has been tested here.
+#' 
+#' Overall, in these simulations the safest thing to do with a lagged (Granger-type) question is to put
+#' the prior level of the outcome in the model as a predictor, and to not count on the AR(1) residual
+#' structure to do that job, since it leaves a bias that more data only makes easier to mistake for an
+#' effect. Note well that the lagged-$y$ model is also the true model for these data, so these results
+#' are the best case for it. In real data, where people plausibly do differ in their typical levels of
+#' $x$ and $y$, a lagged outcome alongside a random intercept has a well-known bias of its own (the
+#' lagged outcome is correlated with the random intercept), and the principled move is to separate the
+#' stable between-person part from the within-person dynamics explicitly, e.g., with a random-intercept
+#' cross-lagged panel model (RI-CLPM) or latent person-mean centering. Observed person-mean centering,
+#' as tried here, did not get the error rate under control.
+#' 
+#' Some limits on all of this:
+#' 
+#' - There is one generating model: a CLPM with 12 waves, a stability of .7 for both variables, a
+#'   contemporaneous correlation of .5, and a cross-lagged effect of exactly zero. None of these were
+#'   varied, so I cannot say how the bias scales with stability, correlation, or the number of waves
+#'   (though the first-row account above predicts it should shrink with more waves).
+#' - Because the generating model has no stable trait component, these results say nothing directly
+#'   about the case that motivates separating within- from between-person variance in the first place.
+#'   `make_riclpm_lavaan()` is defined above but not used to generate any data; running the same
+#'   specifications on RI-CLPM data is the obvious next simulation.
+#' - Only the null was simulated, so there is nothing here about power, or about how well any of these
+#'   models recover a nonzero cross-lagged effect.
+#' - Some sample sizes failed to finish for some specifications and are missing from the plots above
+#'   and from the tables below (listed under the tables).
+#' 
+
+#+echo = F, results = 'asis'
+rep_sets <- list(
+  'y ~ x_lag, AR(1)' = no_wcen_ar_reps,
+  'y ~ y_lag + x_lag' = no_wcen_ylag_reps,
+  'centered x_lag, AR(1)' = wcen_ar_reps,
+  'centered y_lag + x_lag (nlme)' = wcen_ylag_reps,
+  'centered y_lag + x_lag (lme4, Satterthwaite)' = wcen_ylag_l4_reps,
+  'centered y_lag + x_lag (lme4, Satterthwaite, random slope)' = wcen_ylag_l4_wcenre_reps)
+
+rep_summary <- dplyr::bind_rows(lapply(names(rep_sets), function(label){
+  somerez <- rep_sets[[label]]
+  if(length(somerez) != length(N_seq)){
+    stop('Expected one result per element of N_seq for "', label, '"; got ', length(somerez))
+  }
+  failed <- sapply(somerez, inherits, what = 'try-error')
+  dplyr::bind_rows(
+    dplyr::bind_rows(somerez[!failed]) %>%
+      group_by(n) %>%
+      summarize(fp = mean(x_lag_p < .05), est = mean(x_lag_bias)) %>%
+      mutate(model = label, failed = FALSE),
+    data.frame(n = N_seq[failed], fp = rep(NA_real_, sum(failed)), est = rep(NA_real_, sum(failed)), model = rep(label, sum(failed)),
+               failed = rep(TRUE, sum(failed)), stringsAsFactors = FALSE))
+}))
+
+wide_table <- function(value, digits){
+  rep_summary %>%
+    mutate(cell = ifelse(failed, 'failed', formatC(.data[[value]], format = 'f', digits = digits)),
+           model = factor(model, levels = names(rep_sets))) %>%
+    select(n, model, cell) %>%
+    spread(model, cell)
+}
+
+print(knitr::kable(wide_table('fp', 3),
+                   caption = 'Proportion of replications with p < .05 for lagged x (nominal rate .05).'))
+print(knitr::kable(wide_table('est', 4),
+                   caption = 'Average estimate of the effect of lagged x (true value 0).'))
+
+failed_cells <- rep_summary %>% filter(failed)
+if(nrow(failed_cells) > 0){
+  cat('\n\nCells where the simulation run failed (no results saved):\n\n')
+  cat(paste0('- ', failed_cells$model, ', N = ', failed_cells$n, collapse = '\n'), '\n')
+}
