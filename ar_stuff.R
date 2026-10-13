@@ -782,6 +782,8 @@ ar0 <- cells('no_wcen_ar', 0)
 wcen_ar_tr <- cells('wcen_ar', c(.5, 1))
 wcen_ylag_all <- cells('wcen_ylag', c(0, .5, 1))
 ric <- cells('riclpm', c(.5, 1))
+ric_large <- ric[ric$n >= 150, ]
+ric_30 <- ric[ric$n == 30, ]
 rate_at <- function(spec, tv, n) cells(spec, tv, n)$fp_rate
 
 check_claim(min(naive$fp_rate) > .9, 'the naive model rejects in nearly every replication')
@@ -798,7 +800,10 @@ check_claim(mean(wcen_ylag_all$fp_rate) > .05 && mean(wcen_ylag_all$fp_rate) < .
 # "Calibrated" here means every rate within .01 of .05, beyond Monte Carlo noise.
 calibrated <- function(d) all(abs(d$fp_rate - .05) - 2 * null_se(d) < .01)
 check_claim(calibrated(ylag0), 'lagged y controls the error rate on the CLPM data')
-check_claim(calibrated(ric), 'the RI-CLPM error rate is close to nominal')
+check_claim(calibrated(ric_large), 'the RI-CLPM error rate is close to nominal from N = 150 up')
+check_claim(all(ric_30$fp_rate - .05 > 2 * null_se(ric_30)), 'the RI-CLPM runs hot at N = 30')
+check_claim(sum(ric$reps_with_warnings[ric$n < 150]) >= .9 * sum(ric$reps_with_warnings),
+            'nearly all RI-CLPM fit warnings are at N < 150')
 check_claim(avg_est('wcen_ar', 0) < 0 && rate_at('wcen_ar', 0, max_n) > rate_at('wcen_ar', 0, 30),
             'centered x with AR(1) is biased negative on the CLPM data, with the rate rising with N (2018 remark)')
 check_claim(mean(cells('wcen_ylag_l4', c(0, .5, 1))$fp_rate) > .05, 'the Satterthwaite version still runs above .05 (2018 remark: "Bummer")')
@@ -840,10 +845,11 @@ check_claim(abs(avg_est('no_wcen_ar', .5)) < abs(avg_est('no_wcen_ar', 0)) && ab
 #' `r rng(wcen_ylag_all$fp_rate)`, with `r n_hot('wcen_ylag', c(0, .5, 1))` of its `r n_cells('wcen_ylag', c(0, .5, 1))` cells more
 #' than two Monte Carlo SEs above .05. With Satterthwaite degrees of freedom that count is
 #' `r n_hot('wcen_ylag_l4', c(0, .5, 1))`, and with a random slope as well it's
-#' `r n_hot('wcen_ylag_l4_wcenre', c(0, .5, 1))`. The RI-CLPM is unbiased (within
-#' `r max_abs(ric$mean_est)` of zero) with rates from `r rng(ric$fp_rate)`; 
-#' `r n_off('riclpm', c(.5, 1))` of its `r n_cells('riclpm', c(.5, 1))` cells are more than two Monte Carlo SEs from .05, where
-#' about `r round(.046 * n_cells('riclpm', c(.5, 1)))` would be by chance.
+#' `r n_hot('wcen_ylag_l4_wcenre', c(0, .5, 1))`. The RI-CLPM is unbiased at every N (within
+#' `r max_abs(ric$mean_est)` of zero), and from N = 150 up its rates are close to .05
+#' (`r rng(ric_large$fp_rate)`). Below that it runs hot (`r rng(ric_30$fp_rate)` at N = 30), which is
+#' about what you'd expect from a large-sample z-test with 24 observed variables and only a few dozen
+#' people, and it's also where nearly all of its fit warnings are.
 #' 
 #' One thing I didn't expect: AR(1) without centering is less biased with a trait than without one.
 #' Averaged over N, its estimate is `r f3(avg_est('no_wcen_ar', 0))` on the CLPM data,

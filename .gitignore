@@ -3,3 +3,5 @@
 .RData
 .Ruserdata
 riclpm_sims_r1000/v*.RDS
+riclpm_sims_r10000/v*.RDS
+riclpm_sims_r10000/riclpm_sims_all.RDS
