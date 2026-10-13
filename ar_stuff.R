@@ -6,6 +6,13 @@
 #'     toc_float: true
 #'---
 
+#' In 2018 I was helping a lab fit multilevel models to monthly data, asking whether one variable
+#' this month predicts another next month. I suspected the usual way of setting that up finds effects
+#' that aren't there, so I simulated data where x and y move together over time but neither causes the
+#' other, and checked how often different models say otherwise. The short version: leave out last
+#' month's y and you get a false effect nearly every time, and when people also differ in stable ways,
+#' the usual fixes don't fully work either. The details, and what I'd do instead, are below.
+
 #+echo = T, warning = F, error = F, message = F
 library(simsem)
 library(nlme)
