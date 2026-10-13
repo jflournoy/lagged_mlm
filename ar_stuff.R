@@ -21,17 +21,163 @@ library(lme4)
 library(semPlot)
 library(dplyr)
 library(tidyr)
+library(ggplot2)
 
-reps_per_n = 1e4
-rerun = FALSE
 N_seq = c(seq(30, 150, 40), seq(300, 1050, 150))
-cores = 10
 
-# install.packages(c('simsem', 'nlme', 'lmerTest', 'lme4', 'semPlot', 'dplyr', 'tidyr'))
+# Simulation results come from sim_riclpm.R (see "How the simulations work").
+# LAGGED_RESULTS_DIR and LAGGED_EXPECTED_REPS exist only so a pilot run can be
+# rendered without editing this file; the published page uses the defaults.
+results_dir <- Sys.getenv("LAGGED_RESULTS_DIR", "riclpm_sims_r10000")
+expected_reps <- as.integer(Sys.getenv("LAGGED_EXPECTED_REPS", "10000"))
 
-#+echo = F, warning = F, error = F, message = F
+# install.packages(c('simsem', 'nlme', 'lmerTest', 'lme4', 'semPlot', 'dplyr', 'tidyr', 'ggplot2'))
+
+#+echo = F
+if(is.na(expected_reps) || expected_reps < 1){
+  stop('LAGGED_EXPECTED_REPS must be a positive integer; got "', Sys.getenv("LAGGED_EXPECTED_REPS"), '".')
+}
+if(!dir.exists(results_dir)){
+  stop('Simulation results directory "', results_dir, '" does not exist. Run sim_riclpm.R ',
+       '(Rscript sim_riclpm.R ', expected_reps, ' <cores>) or set LAGGED_RESULTS_DIR.')
+}
+summary_file <- file.path(results_dir, 'riclpm_sims_summary.RDS')
+if(!file.exists(summary_file)){
+  stop('Expected the simulation summary at ', summary_file, '; sim_riclpm.R writes it when every chunk is done.')
+}
+sim_sum <- as.data.frame(readRDS(summary_file))
+
+needed_cols <- c('trait_var', 'spec', 'n', 'reps', 'failed', 'n_valid', 'reps_with_warnings',
+                 'fp_rate', 'mc_se', 'mean_est', 'sd_est')
+if(!all(needed_cols %in% names(sim_sum))){
+  stop('Simulation summary is missing columns: ', paste(setdiff(needed_cols, names(sim_sum)), collapse = ', '))
+}
+
+spec_labels <- c(
+  naive = 'y ~ x_lag (naive)',
+  no_wcen_ar = 'y ~ x_lag, AR(1)',
+  no_wcen_ylag = 'y ~ y_lag + x_lag',
+  wcen_ar = 'centered x_lag, AR(1)',
+  wcen_ylag = 'centered y_lag + x_lag (nlme)',
+  wcen_ylag_l4 = 'centered y_lag + x_lag (lme4, Satterthwaite)',
+  wcen_ylag_l4_wcenre = 'centered y_lag + x_lag (lme4, Satterthwaite, random slope)',
+  riclpm = 'RI-CLPM')
+
+# Every spec on all three generating models, except the RI-CLPM fit, which is
+# not run on CLPM data (its trait variance would sit at the boundary of zero).
+expected_cells <- rbind(
+  expand.grid(trait_var = c(0, .5, 1), spec = setdiff(names(spec_labels), 'riclpm'), n = N_seq,
+              stringsAsFactors = FALSE),
+  expand.grid(trait_var = c(.5, 1), spec = 'riclpm', n = N_seq, stringsAsFactors = FALSE))
+if(nrow(expected_cells) != 230) stop('Internal error: the expected design should have 230 cells, not ', nrow(expected_cells))
+
+cell_key <- function(d) paste(d$trait_var, d$spec, d$n, sep = '/')
+if(anyDuplicated(cell_key(sim_sum))){
+  stop('Simulation summary has duplicated cells: ', paste(unique(cell_key(sim_sum)[duplicated(cell_key(sim_sum))]), collapse = ', '))
+}
+missing_cells <- setdiff(cell_key(expected_cells), cell_key(sim_sum))
+extra_cells <- setdiff(cell_key(sim_sum), cell_key(expected_cells))
+if(length(missing_cells) > 0 || length(extra_cells) > 0 || nrow(sim_sum) != nrow(expected_cells)){
+  stop('Simulation summary has ', nrow(sim_sum), ' cells; expected ', nrow(expected_cells), '. Missing: ',
+       paste(missing_cells, collapse = ', '), '. Unexpected: ', paste(extra_cells, collapse = ', '))
+}
+if(!identical(sort(unique(sim_sum$n)), sort(N_seq))){
+  stop('Simulation summary sample sizes do not match N_seq.')
+}
+if(any(sim_sum$reps != expected_reps)){
+  stop('Every simulation cell should have ', expected_reps, ' replications; these do not: ',
+       paste(cell_key(sim_sum[sim_sum$reps != expected_reps, ]), collapse = ', '))
+}
+if(any(sim_sum$n_valid + sim_sum$failed != sim_sum$reps)){
+  stop('Some simulation cells have replications that are neither valid nor recorded as failed: ',
+       paste(cell_key(sim_sum[sim_sum$n_valid + sim_sum$failed != sim_sum$reps, ]), collapse = ', '))
+}
+if(any(sim_sum$n_valid < 2)){
+  stop('Some simulation cells have fewer than 2 valid replications: ',
+       paste(cell_key(sim_sum[sim_sum$n_valid < 2, ]), collapse = ', '))
+}
+trait_levels <- c('0 (CLPM)', '.5', '1')
+trait_label <- function(tv){
+  out <- c('0' = '0 (CLPM)', '0.5' = '.5', '1' = '1')[as.character(tv)]
+  if(any(is.na(out))) stop('Unexpected trait variance: ', paste(tv[is.na(out)], collapse = ', '))
+  unname(out)
+}
+trait_colors <- c('0 (CLPM)' = '#7a7a7a', '.5' = '#2a78d6', '1' = '#d4572a')
+trait_shapes <- c('0 (CLPM)' = 16, '.5' = 17, '1' = 15)
+fp_floor <- .01
+
+# Leading-zero-free numbers, as in ".05".
+f3 <- function(x, digits = 3) sub('^(-?)0\\.', '\\1.', formatC(round(x, digits) + 0, format = 'f', digits = digits))
+
+sim_theme <- function(){
+  theme_minimal(base_size = 12) +
+    theme(legend.position = 'bottom',
+          panel.grid.minor = element_blank(),
+          axis.text.x = element_text(angle = 45, hjust = 1))
+}
+n_scale <- function() scale_x_sqrt(breaks = N_seq, name = 'Sample size (N, square-root scale)')
+trait_scales <- function(){
+  list(scale_color_manual(values = trait_colors, limits = trait_levels, drop = FALSE, name = 'Trait variance'),
+       scale_shape_manual(values = trait_shapes, limits = trait_levels, drop = FALSE, name = 'Trait variance'))
+}
+
+# One plot pair per model specification, from the summary: the false-positive
+# rate on a log scale (reference line at .05, bars at +/-2 Monte Carlo SE), and
+# the average estimate (reference line at 0, bars at +/-2 SE of the mean).
+plot_spec <- function(spec_name){
+  d <- sim_sum[sim_sum$spec == spec_name, ]
+  if(nrow(d) == 0) stop('No simulation results for spec "', spec_name, '".')
+  d$trait <- factor(trait_label(d$trait_var), levels = trait_levels)
+  d$fp_plot <- pmax(d$fp_rate, fp_floor)
+  d$fp_lo <- pmax(d$fp_rate - 2 * d$mc_se, fp_floor)
+  d$fp_hi <- pmax(pmin(d$fp_rate + 2 * d$mc_se, 1), fp_floor)
+  d$est_se <- d$sd_est / sqrt(d$n_valid)
+  dodge <- position_dodge(width = .8)
+  n_floored <- sum(d$fp_rate < fp_floor)
+  floor_note <- if(n_floored > 0) sprintf('%d rate(s) below %s drawn at %s', n_floored, f3(fp_floor, 2), f3(fp_floor, 2)) else NULL
+
+  fp_plot <- ggplot(d, aes(x = n, y = fp_plot, color = trait, shape = trait)) +
+    geom_hline(yintercept = .05, color = 'gray30', linetype = 'dashed') +
+    geom_linerange(aes(ymin = fp_lo, ymax = fp_hi), position = dodge) +
+    geom_line(position = dodge, linewidth = .5) +
+    geom_point(position = dodge, size = 2) +
+    scale_y_log10(limits = c(fp_floor, 1), breaks = c(.01, .025, .05, .1, .25, .5, 1),
+                  labels = c('.01', '.025', '.05', '.1', '.25', '.5', '1')) +
+    n_scale() + trait_scales() +
+    labs(y = 'Proportion with p < .05 (log scale)', title = 'False-positive rate', caption = floor_note) +
+    sim_theme()
+
+  est_plot <- ggplot(d, aes(x = n, y = mean_est, color = trait, shape = trait)) +
+    geom_hline(yintercept = 0, color = 'gray30', linetype = 'dashed') +
+    geom_linerange(aes(ymin = mean_est - 2 * est_se, ymax = mean_est + 2 * est_se), position = dodge) +
+    geom_line(position = dodge, linewidth = .5) +
+    geom_point(position = dodge, size = 2) +
+    n_scale() + trait_scales() +
+    labs(y = 'Average estimate of lagged x (true value 0)', title = 'Average estimate') +
+    sim_theme()
+
+  print(fp_plot)
+  print(est_plot)
+}
+
+# Lookups for numbers quoted in the text; each stops if a cell is missing.
+cells <- function(spec, tv, n = N_seq){
+  d <- sim_sum[sim_sum$spec %in% spec & sim_sum$trait_var %in% tv & sim_sum$n %in% n, ]
+  if(nrow(d) != length(spec) * length(tv) * length(n)){
+    stop('Expected ', length(spec) * length(tv) * length(n), ' cells for ', paste(spec, collapse = '+'),
+         ' at trait variance ', paste(tv, collapse = '/'), '; found ', nrow(d))
+  }
+  d
+}
+avg_est <- function(spec, tv) mean(cells(spec, tv)$mean_est)
+rng <- function(x, digits = 3) paste0(f3(min(x), digits), ' to ', f3(max(x), digits))
+max_abs <- function(x, digits = 3) f3(max(abs(x)), digits)
+n_hot <- function(spec, tv) sum(with(cells(spec, tv), fp_rate - 2 * mc_se > .05))
+n_off <- function(spec, tv) sum(with(cells(spec, tv), abs(fp_rate - .05) > 2 * mc_se))
+max_n <- max(N_seq)
 
 
+#+echo = F
 make_clpm_lavaan <- function(generate = T, generating_params = list(s = .7,cl = 0,r = 1,co = .5)){
   if(generate){
     b <- lapply(generating_params, paste0, '*')
@@ -179,6 +325,20 @@ generatingModel <- make_clpm_lavaan()
 #' (.7) and being somewhat correlated (.5).  
 #' 
 #'
+#' The CLPM has no stable differences between people: everyone's x and y bounce around the same
+#' average. To see what a stable trait does, I also generate data from the random-intercept CLPM
+#' (RI-CLPM), which gives each person their own typical level of x and of y (trait variance .5 or
+#' 1, uncorrelated), with the same within-person process as above (stability .7, within-wave
+#' correlation .5, no cross-lagged effects). As written, `make_riclpm_lavaan()` leaves the observed
+#' residual variances free, so `simulateData()` adds measurement error the model never mentions;
+#' `sim_riclpm.R` fixes them to 0, so the data are exactly an RI-CLPM.
+#'
+#' # One simulated dataset
+#'
+#' First, a single dataset of 250 people drawn from the CLPM (with `empirical = T`, so its covariances
+#' match the model exactly).
+#'
+
 #+echo = T
 someData <- simulateData(model=generatingModel, sample.nobs=250, empirical=T,
                          auto.fix.first = FALSE, auto.var = FALSE, auto.fix.single = FALSE,
@@ -268,9 +428,28 @@ summary(cont1.yAR)
 #'
 #' This looks right, 'cause this is very close to the generating model with no possible confounds.
 #'
-
 #' 
-#' # Numerous simulations
+#' # Simulations
+#' 
+#' ## How the simulations work
+#' 
+#' Every simulation has a null cross-lag: over 12 waves, x and y are each stable (.7) and correlated
+#' within each wave (.5), but neither affects the other. For each generating model (the CLPM, or
+#' the RI-CLPM with trait variance .5 or 1) and each sample size (N = `r paste(N_seq, collapse = ', ')`),
+#' `sim_riclpm.R` draws `r format(expected_reps, big.mark = ',')` datasets, fits each model below,
+#' and records the estimate and _p_-value for lagged x. A fit that errors or doesn't converge counts
+#' as a failure and is left out of that cell (the table at the end shows how many); fits that only
+#' raise warnings are kept. With `r format(expected_reps, big.mark = ',')` replications, the Monte
+#' Carlo SE of a rate near .05 is about `r f3(sqrt(.05 * .95 / expected_reps))`; the error bars in
+#' the plots are ±2 SE. The 2018 runs used `lmeControl(opt = "optim")`, which stopped short of the
+#' maximum around N = 300 and made a spurious spike there for centered x with AR(1); these runs use
+#' nlme's default optimizer, which fixes that.
+#' 
+#' The data generation and model fitting code is below. `sim_riclpm.R` reuses these definitions
+#' (and the generators above), and adds the naive model and the RI-CLPM fit. Running it
+#' (`Rscript sim_riclpm.R 10000 <cores>`) writes the summary this page reads,
+#' `riclpm_sims_summary.RDS`, into the folder named in `results_dir` at the top.
+#' 
 
 generate_data <- function(n = 250, gen_mod, wcen = FALSE){
   someData <- simulateData(model=gen_mod, sample.nobs=n, empirical=F)
@@ -354,80 +533,23 @@ run_model <- function(n = 250, gen_mod, wcen = FALSE, use_lag_y = FALSE, use_lme
   return(data.frame(n = n, x_lag_p = x_lag_p, x_lag_bias = x_lag_bias))
 }
 
-if(rerun){
-  library(parallel)
-  system.time(no_wcen_ar_reps <- mclapply(N_seq,
-                                       function(n) {
-                                         somereps <- dplyr::bind_rows(
-                                           replicate(reps_per_n,
-                                                     run_model(n, generatingModel, wcen = F),
-                                                     simplify = F))
-                                         return(somereps)
-                                       }, mc.cores = cores))
-  saveRDS(no_wcen_ar_reps, 'no_wcen_ar.RDS')
-  
-  system.time(wcen_ar_reps <- mclapply(N_seq,
-                                     function(n) {
-                                       somereps <- dplyr::bind_rows(
-                                         replicate(reps_per_n,
-                                                   run_model(n, generatingModel, wcen = T),
-                                                   simplify = F))
-                                       return(somereps)
-                                     }, mc.cores = cores))
-  saveRDS(wcen_ar_reps, 'wcen_ar.RDS')
-  
-  system.time(no_wcen_ylag_reps <- mclapply(N_seq,
-                                          function(n) {
-                                            somereps <- dplyr::bind_rows(
-                                              replicate(reps_per_n,
-                                                        run_model(n, generatingModel, wcen = F, use_lag_y = T),
-                                                        simplify = F))
-                                            return(somereps)
-                                          }, mc.cores = cores))
-  saveRDS(no_wcen_ylag_reps, 'no_wcen_ylag_reps.RDS')
-  
-  system.time(wcen_ylag_reps <- mclapply(N_seq,
-                                       function(n) {
-                                         somereps <- dplyr::bind_rows(
-                                           replicate(reps_per_n,
-                                                     run_model(n, generatingModel, wcen = T, use_lag_y = T),
-                                                     simplify = F))
-                                         return(somereps)
-                                       }, mc.cores = cores))
-  saveRDS(wcen_ylag_reps, 'wcen_ylag_reps.RDS')
-  
-  system.time(wcen_ylag_l4_reps <- mclapply(N_seq,
-                                            function(n) {
-                                              somereps <- dplyr::bind_rows(
-                                                replicate(reps_per_n,
-                                                          run_model(n, generatingModel, wcen = T, use_lag_y = T,
-                                                                    use_lme4 = T, wcen_re = F),
-                                                          simplify = F))
-                                              return(somereps)
-                                            }, mc.cores = cores))
-  saveRDS(wcen_ylag_l4_reps, 'wcen_ylag_l4_reps.RDS')
-  
-  system.time(wcen_ylag_l4_wcenre_reps <- mclapply(N_seq,
-                                                   function(n) {
-                                                     somereps <- dplyr::bind_rows(
-                                                       replicate(reps_per_n,
-                                                                 run_model(n, generatingModel, wcen = T, use_lag_y = T,
-                                                                           use_lme4 = T, wcen_re = T),
-                                                                 simplify = F))
-                                                     return(somereps)
-                                                   }, mc.cores = cores))
-  saveRDS(wcen_ylag_l4_wcenre_reps, 'wcen_ylag_l4_wcenre_reps.RDS')
-} else {
-  no_wcen_ar_reps <- readRDS('no_wcen_ar.RDS')
-  wcen_ar_reps <- readRDS('wcen_ar.RDS')
-  no_wcen_ylag_reps <- readRDS('no_wcen_ylag_reps.RDS')
-  wcen_ylag_reps <- readRDS('wcen_ylag_reps.RDS')
-  wcen_ylag_l4_reps <- readRDS('wcen_ylag_l4_reps.RDS')
-  wcen_ylag_l4_wcenre_reps <- readRDS('wcen_ylag_l4_wcenre_reps.RDS')
-}
+#'
+#' ## The naive model
+#'
+#' ```
+#' lag1.naive <- lme(y ~ 1 + x_lag, random = ~ 1 | id, data = someData_long,
+#'                   na.action = na.omit)
+#' ```
+#'
+#' This is the first model in the demonstration above, with nothing to account for the stability
+#' of y.
+#'
+
+#+echo = F, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+plot_spec('naive')
 
 #'
-#' # Using AR residual structure to account for stability
+#' ## Using AR residual structure to account for stability
 #'
 #' ```
 #' lag1.yAR <-lme(y ~ 1 + x_lag, random = ~ 1 | id, data = someData_long,
@@ -436,74 +558,19 @@ if(rerun){
 #' ```
 #'
 
-#+echo = F
-plot_results <- function(somerez, max_fp = .20, plot_points = FALSE, which = c('both', 'bias', 'error')){
-  library(ggplot2)
-  somerez <- lapply(somerez, function(arez){
-    if(inherits(arez, what = 'try-error')){
-      return(NULL)
-    } else {
-      return(arez)
-    }
-  })
-  somerez_df <- dplyr::bind_rows(somerez) %>%
-    group_by(n) %>%
-    mutate(fp = as.numeric(x_lag_p < .05))
-  
-  somerez_df_prop_sum <- somerez_df %>%
-    group_by(n) %>%
-    summarize(fp = mean(fp),
-           fp.se = sqrt((fp * (1-fp)) / n()),
-           fp.u = fp+1.96*fp.se,
-           fp.l = fp-1.96*fp.se)
-  
-  if(which[[1]] %in% c('both', 'bias')){
-    biasplot <- ggplot(somerez_df,
-                       aes(x = n, y = x_lag_bias)) + 
-      geom_violin(aes(group = n)) + 
-      geom_hline(yintercept = 0)
-    if(plot_points){
-      biasplot <- biasplot +
-        geom_point(alpha = .2, position = position_jitter(width = 2))  
-    } else {
-      biasplot <- biasplot +
-        geom_boxplot(alpha = 0, size = .5, aes(group = factor(n)), width = 25)
-    }
-    biasplot <- biasplot + 
-      geom_smooth(method = 'gam', formula = y ~ s(x, k = 3, bs = 'tp', fx = FALSE), size = .75) + 
-      labs(x = 'Sample size', y = 'Estimate of effect of lagged x\n(should be 0, on average)') + 
-      theme_minimal()
-    
-    print(biasplot)
-  }
-  if(which[[1]] %in% c('both', 'error')){
-    print(ggplot(somerez_df_prop_sum,
-                 aes(x = n, y = fp)) +
-            geom_errorbar(aes(ymin = fp.l, ymax = fp.u), width = 0) +
-            geom_point() + 
-            geom_hline(yintercept = .05) + 
-            geom_smooth(method = 'gam', formula = y ~ s(x, k = 3, bs = 'tp', fx = FALSE),
-                        se = FALSE) +
-            coord_cartesian(ylim = c(0, max_fp)) +
-            scale_x_continuous(breaks = N_seq) + 
-            labs(x = 'Sample size', y = 'Proportion of false positives\n(should be < .05 for all N)') + 
-            theme_minimal())
-  }
-}
-
-#+echo = T
-plot_results(no_wcen_ar_reps, max_fp = 1)
+#+echo = F, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+plot_spec('no_wcen_ar')
 
 #'
-#' What we see here is a consistent bias in the estimates of the effect of lagged x on y. As our sample size
+#' What we see here on the CLPM data (gray) is a consistent bias in the estimates of the effect of lagged x on y. As our sample size
 #' increases, we are better and better powered, which means we erroneously reject the null more often due
 #' to this bias. In other words, if we are powered to detect an effect of lagged x on y, we are powered to
 #' mistake this bias for a causal effect, even using the AR structure
-#' to adjust for the stability of y.
+#' to adjust for the stability of y. (The trait data behave differently; see "What's going on?" below.)
 #'
 
 #'
-#' # Using lagged DV to account for stability
+#' ## Using lagged DV to account for stability
 #'
 #' ```
 #' lag1.yAR <-lme(y ~ 1 + y_lag + x_lag, random = ~ 1 | id, data = someData_long,
@@ -511,15 +578,17 @@ plot_results(no_wcen_ar_reps, max_fp = 1)
 #' ```
 #' 
 
-plot_results(no_wcen_ylag_reps)
+#+echo = F, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+plot_spec('no_wcen_ylag')
 
 #'
-#' Here we see no bias in the estimate of the effect of lagged x on y, and correspondingly our error
-#' rate is controlled appropriately.
+#' On the CLPM data, we see no bias in the estimate of the effect of lagged x on y, and correspondingly our error
+#' rate is controlled appropriately. With stable traits, though, the estimate is biased negative, and the
+#' error rate climbs with N.
 #'
 #'
 #'
-#' # AR with within-person-centering
+#' ## AR with within-person-centering
 #' 
 #' We might want to create separate IVs for the within-person versus the between-person effect. In this
 #' example, I've created a variable that is just each person's mean across all waves, centered at the 
@@ -538,13 +607,14 @@ plot_results(no_wcen_ylag_reps)
 #' ```
 #'
 
-plot_results(wcen_ar_reps)
+#+echo = F, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+plot_spec('wcen_ar')
 
 #'
 #' Interestingly, when we within-person center the lagged x variable, we see a negative bias. This is also
 #' picked up in the p-values as our sample size increases.
 #'
-#' # Lagged y with within-person-centering
+#' ## Lagged y with within-person-centering
 #' 
 #' Note that when we within-person center the IV, x, we also within-person center the lagged DV, y, and include that (the 
 #' between-person component of y is redundant with the random intercept). If you don't do this, wow, the false positive 
@@ -556,7 +626,8 @@ plot_results(wcen_ar_reps)
 #' ```
 #'
 
-plot_results(wcen_ylag_reps)
+#+echo = F, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+plot_spec('wcen_ylag')
 
 #'
 #' The error rate in this case is still higher than the nominal rate, but since bias is 0, this may be due to a problem with the
@@ -565,7 +636,7 @@ plot_results(wcen_ylag_reps)
 #' predictor helps.
 #'
 #'
-#' # Lagged y with within-person-centering, Satterthwaite correction
+#' ## Lagged y with within-person-centering, Satterthwaite correction
 #'
 #' Perhaps using the Satterthwaite correction will appropriately adjust the _p_-values.
 #' 
@@ -577,12 +648,13 @@ plot_results(wcen_ylag_reps)
 #' ```
 #' 
 
-plot_results(wcen_ylag_l4_reps)
+#+echo = F, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+plot_spec('wcen_ylag_l4')
 
 #'
 #' Bummer. Still a higher than expected error rate.
 #'
-#' # Lagged y with within-person-centering, Satterthwaite correction + WCEN RE
+#' ## Lagged y with within-person-centering, Satterthwaite correction + WCEN RE
 #'
 #' The last thing I'll try is to add the within-person centered lagged predictor as random effect.
 #'
@@ -594,202 +666,166 @@ plot_results(wcen_ylag_l4_reps)
 #' ```
 #' 
 
-plot_results(wcen_ylag_l4_wcenre_reps)
+#+echo = F, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+plot_spec('wcen_ylag_l4_wcenre')
 
 #'
 #' That looks like it helped a little bit, but it also seems to induce a small negative bias.
 #' 
+#' ## The RI-CLPM
+#' 
+#' ```
+#' riclpm_fit_text <- riclpmr::riclpm_text(list(x = paste0("x", 1:12), y = paste0("y", 1:12)),
+#'                                         constrain_over_waves = TRUE)
+#' fit <- riclpmr::lavriclpm(riclpmModel = riclpm_fit_text, data = someData)
+#' ```
+#' 
+#' Last, the RI-CLPM itself, fit to the wide data with riclpmr, with each path constrained equal
+#' over waves. The estimate is the path from x at _t_ − 1 to y at _t_. It's the true model for the
+#' trait data, so it's the benchmark here. It isn't fit to the CLPM data, where its trait variances
+#' would sit at their boundary of zero.
+#' 
+
+#+echo = F, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+plot_spec('riclpm')
+
+#' 
+#' ## The results in two tables
+#' 
+
+#+echo = F, results = 'asis'
+table_n <- c(30, 300, max_n)
+tab_cells <- sim_sum[sim_sum$n %in% table_n, ]
+tab_cells$cell_fp <- f3(tab_cells$fp_rate)
+tab_cells$cell_est <- f3(tab_cells$mean_est)
+rate_wide <- tab_cells %>%
+  mutate(col = paste0('rate, N = ', n)) %>%
+  select(spec, trait_var, col, cell_fp) %>%
+  spread(col, cell_fp)
+est_wide <- tab_cells %>%
+  mutate(col = paste0('estimate, N = ', n)) %>%
+  select(spec, trait_var, col, cell_est) %>%
+  spread(col, cell_est)
+results_table <- dplyr::inner_join(rate_wide, est_wide, by = c('spec', 'trait_var'))
+if(nrow(results_table) != nrow(expected_cells) / length(N_seq)) stop('Results table lost or gained rows in the join.')
+results_table <- results_table %>%
+  mutate(model = factor(spec_labels[spec], levels = spec_labels),
+         `trait variance` = factor(trait_label(trait_var), levels = trait_levels)) %>%
+  arrange(model, `trait variance`) %>%
+  select(model, `trait variance`, paste0('rate, N = ', table_n), paste0('estimate, N = ', table_n))
+print(knitr::kable(results_table, align = c('l', 'l', rep('r', 2 * length(table_n))),
+                   caption = paste0('Proportion of replications with p < .05 for lagged x (nominal .05), and the average estimate ',
+                                    '(true value 0), at three sample sizes. ', format(expected_reps, big.mark = ','),
+                                    ' replications per cell.')))
+
+problem_table <- sim_sum %>%
+  group_by(spec, trait_var) %>%
+  summarize(failed_total = sum(failed),
+            failed_max = max(failed),
+            failed_max_n = paste(n[failed == max(failed)], collapse = ', '),
+            warn_total = sum(reps_with_warnings),
+            warn_max = max(reps_with_warnings),
+            warn_max_n = paste(n[reps_with_warnings == max(reps_with_warnings)], collapse = ', '),
+            .groups = 'drop') %>%
+  filter(failed_total > 0 | warn_total > 0) %>%
+  mutate(model = factor(spec_labels[spec], levels = spec_labels),
+         `trait variance` = factor(trait_label(trait_var), levels = trait_levels),
+         `failed fits` = failed_total,
+         `most failures in one cell (N)` = ifelse(failed_total > 0, paste0(failed_max, ' (', failed_max_n, ')'), ''),
+         `fits with warnings` = warn_total,
+         `most warnings in one cell (N)` = ifelse(warn_total > 0, paste0(warn_max, ' (', warn_max_n, ')'), '')) %>%
+  arrange(model, `trait variance`) %>%
+  select(model, `trait variance`, `failed fits`, `most failures in one cell (N)`, `fits with warnings`, `most warnings in one cell (N)`)
+if(nrow(problem_table) == 0){
+  cat('\n\nNo fit failed or raised a warning in any cell.\n\n')
+} else {
+  print(knitr::kable(problem_table, align = c('l', 'l', 'r', 'r', 'r', 'r'),
+                     caption = paste0('Fits that failed (errors or non-convergence; left out of that cell) and fits that raised ',
+                                      'at least one warning (kept), summed over the ', length(N_seq), ' sample sizes, out of ',
+                                      format(expected_reps * length(N_seq), big.mark = ','),
+                                      ' per row. Rows with neither are left out.')))
+}
+
+#+echo = F
+# The text below states some results in words. Each such statement is checked
+# here, so if new results contradict it the page stops instead of publishing
+# prose that no longer matches the numbers.
+check_claim <- function(ok, claim){
+  if(!isTRUE(ok)) stop('The text claims ', claim, ', but these results do not show it. Revise "What\'s going on?".')
+}
+pct_floor <- function(x) paste0(floor(100 * x), '%')
+naive <- cells('naive', c(0, .5, 1))
+ylag0 <- cells('no_wcen_ylag', 0)
+ar0 <- cells('no_wcen_ar', 0)
+wcen_ar_tr <- cells('wcen_ar', c(.5, 1))
+wcen_ylag_all <- cells('wcen_ylag', c(0, .5, 1))
+ric <- cells('riclpm', c(.5, 1))
+rate_at <- function(spec, tv, n) cells(spec, tv, n)$fp_rate
+
+check_claim(min(naive$fp_rate) > .9, 'the naive model rejects in nearly every replication')
+check_claim(max(abs(ylag0$mean_est)) < .01, 'lagged y is unbiased on the CLPM data')
+check_claim(avg_est('no_wcen_ylag', .5) < 0 && avg_est('no_wcen_ylag', 1) < 0, 'lagged y is biased negative with traits')
+check_claim(all(rate_at('no_wcen_ylag', c(.5, 1), max_n) > rate_at('no_wcen_ylag', c(.5, 1), 30)),
+            'the lagged y false-positive rate climbs with N when there are traits')
+check_claim(avg_est('no_wcen_ar', 0) > 0, 'AR(1) without centering has a positive bias on the CLPM data')
+check_claim(rate_at('no_wcen_ar', 0, max_n) > rate_at('no_wcen_ar', 0, 30), 'the AR(1) rate on CLPM data climbs with N')
+check_claim(avg_est('wcen_ar', .5) < 0 && avg_est('wcen_ar', 1) < 0, 'centered x with AR(1) is biased negative with traits')
+check_claim(max(abs(wcen_ylag_all$mean_est)) < .02, 'centered x with centered lagged y is close to unbiased')
+check_claim(mean(wcen_ylag_all$fp_rate) > .05, 'centered x with centered lagged y runs a little hot')
+check_claim(max(abs(ric$mean_est)) < .02, 'the RI-CLPM is unbiased')
+check_claim(avg_est('no_wcen_ar', .5) < avg_est('no_wcen_ar', 0) && avg_est('no_wcen_ar', 1) < avg_est('no_wcen_ar', 0),
+            'the AR(1) bias is smaller with a trait than on CLPM data')
+
+#' 
 #' # What's going on?
 #' 
 #' The naive model (y on lagged x, with a random intercept and nothing else) finds an effect that
-#' isn't there, nearly every time: the average estimate is about .28 on the CLPM data and .25 to .26 when
-#' people also have stable traits, with p < .05 in at least 97% of replications at every N. It's an
+#' isn't there nearly every time: _p_ < .05 in at least `r pct_floor(min(naive$fp_rate))` of
+#' replications in every cell, with average estimates from `r rng(naive$mean_est)`. It's an
 #' ordinary omitted-variable problem, where the omitted variable is the outcome one wave earlier:
 #' $y_{t-1}$ causes $y_{t}$ and is correlated with $x_{t-1}$, so a regression of $y_{t}$ on
 #' $x_{t-1}$ alone reads that path as an effect. Stable traits add a second path, through
 #' between-person differences in people's typical levels of x and y.
 #' 
-#' On the 2018 CLPM data, adding lagged y fixed it (false-positive rates of .049 to .055 where the
-#' runs finished, average estimates within .001 of zero). AR(1) residuals left a constant bias of
-#' about .03, so the rate climbed with N (.115 at N = 30, .721 at N = 750) as the standard error
-#' shrank around an off-center estimate. Person-mean centering plus lagged y was unbiased but ran a
-#' little hot (.074 to .083). Note well that lagged y is the true model for CLPM data, so that was
-#' its best case.
+#' Adding lagged y fixes it on the CLPM data (rates from `r rng(ylag0$fp_rate)`, average estimates
+#' within `r max_abs(ylag0$mean_est)` of zero). But lagged y is the true model for CLPM data, so
+#' that's its best case. With stable traits it's biased negative (averaged over N, 
+#' `r f3(avg_est('no_wcen_ylag', .5))` at trait variance .5 and `r f3(avg_est('no_wcen_ylag', 1))` at 1).
+#' The bias stays put while the standard error shrinks, so the rate climbs with N, to 
+#' `r f3(rate_at('no_wcen_ylag', .5, max_n))` and `r f3(rate_at('no_wcen_ylag', 1, max_n))` at
+#' N = `r max_n`. This is probably the well-known problem of a lagged outcome that is correlated with
+#' the random intercept.
 #' 
-
-#+echo = F, results = 'asis'
-rep_sets <- list(
-  'y ~ x_lag, AR(1)' = no_wcen_ar_reps,
-  'y ~ y_lag + x_lag' = no_wcen_ylag_reps,
-  'centered x_lag, AR(1)' = wcen_ar_reps,
-  'centered y_lag + x_lag (nlme)' = wcen_ylag_reps,
-  'centered y_lag + x_lag (lme4, Satterthwaite)' = wcen_ylag_l4_reps,
-  'centered y_lag + x_lag (lme4, Satterthwaite, random slope)' = wcen_ylag_l4_wcenre_reps)
-
-rep_summary <- dplyr::bind_rows(lapply(names(rep_sets), function(label){
-  somerez <- rep_sets[[label]]
-  if(length(somerez) != length(N_seq)){
-    stop('Expected one result per element of N_seq for "', label, '"; got ', length(somerez))
-  }
-  failed <- sapply(somerez, inherits, what = 'try-error')
-  dplyr::bind_rows(
-    dplyr::bind_rows(somerez[!failed]) %>%
-      group_by(n) %>%
-      summarize(fp = mean(x_lag_p < .05), est = mean(x_lag_bias)) %>%
-      mutate(model = label, failed = FALSE),
-    data.frame(n = N_seq[failed], fp = rep(NA_real_, sum(failed)), est = rep(NA_real_, sum(failed)), model = rep(label, sum(failed)),
-               failed = rep(TRUE, sum(failed)), stringsAsFactors = FALSE))
-}))
-
-wide_table <- function(value, digits){
-  rep_summary %>%
-    mutate(cell = ifelse(failed, 'failed', formatC(.data[[value]], format = 'f', digits = digits)),
-           model = factor(model, levels = names(rep_sets))) %>%
-    select(n, model, cell) %>%
-    spread(model, cell)
-}
-
-print(knitr::kable(wide_table('fp', 3),
-                   caption = 'CLPM data (2018 runs, 10,000 replications per cell): proportion of replications with p < .05 for lagged x (nominal rate .05).'))
-print(knitr::kable(wide_table('est', 4),
-                   caption = 'CLPM data (2018 runs): average estimate of the effect of lagged x (true value 0).'))
-
-failed_cells <- rep_summary %>% filter(failed)
-if(nrow(failed_cells) > 0){
-  cat('\n\nCells where the 2018 simulation run failed (no results saved):\n\n')
-  cat(paste0('- ', failed_cells$model, ', N = ', failed_cells$n, collapse = '\n'), '\n')
-}
-
-#'
-#' ## Data with stable traits
+#' AR(1) residuals have the same kind of trouble. On the CLPM data the average estimate is about
+#' `r f3(avg_est('no_wcen_ar', 0))`, so the rate goes from `r f3(rate_at('no_wcen_ar', 0, 30))` at
+#' N = 30 to `r f3(rate_at('no_wcen_ar', 0, max_n))` at N = `r max_n`. Centering x and keeping the
+#' AR(1) gives a negative bias when there's a trait (about `r f3(avg_est('wcen_ar', .5))` at trait
+#' variance .5 and `r f3(avg_est('wcen_ar', 1))` at 1), with rates up to `r f3(max(wcen_ar_tr$fp_rate))`.
 #' 
-#' To see what a stable trait does, I generated data from the RI-CLPM, with trait variance .5 or 1
-#' and everything else as before, and also fit the RI-CLPM itself (with riclpmr).^[As written,
-#' `make_riclpm_lavaan()` leaves the observed residual variances free, so `simulateData()` adds
-#' measurement error the model never mentions; `sim_riclpm.R` fixes them to 0, so the data are
-#' exactly an RI-CLPM.] With 1,000 replications per cell, the Monte Carlo SE of a rate near .05 is
-#' about .007.
+#' Centered x with centered lagged y stays close to unbiased everywhere (every average estimate
+#' within `r max_abs(wcen_ylag_all$mean_est)` of zero) but runs a little hot: rates from
+#' `r rng(wcen_ylag_all$fp_rate)`, with `r n_hot('wcen_ylag', c(0, .5, 1))` of its 30 cells more
+#' than two Monte Carlo SEs above .05. With Satterthwaite degrees of freedom that count is
+#' `r n_hot('wcen_ylag_l4', c(0, .5, 1))`, and with a random slope as well it's
+#' `r n_hot('wcen_ylag_l4_wcenre', c(0, .5, 1))`. The RI-CLPM is unbiased (within
+#' `r max_abs(ric$mean_est)` of zero) with rates from `r rng(ric$fp_rate)`; 
+#' `r n_off('riclpm', c(.5, 1))` of its 20 cells are more than two Monte Carlo SEs from .05, where
+#' about one would be by chance.
 #' 
-#' Lagged y without centering is now biased negative (about −.03 at trait variance .5, −.04 at 1),
-#' and by N = 750 it rejects in nearly every replication, which is probably the well-known problem of a
-#' lagged outcome that is correlated with the random intercept. Centered x with AR(1) is biased by
-#' about −.02, with rates mostly rising with N, to about .55.^[The N = 300 cells are worse (.54 and .64). A small
-#' side check (60 replications at each of three N) suggests `lmeControl(opt = "optim")` stopping
-#' short of the maximum there; the default optimizer gave about −.023. I can't rule out milder
-#' versions of this at other N.] Centered x with centered lagged y stays unbiased and a little hot
-#' (.063 to .097 without a random slope; .053 to .085 with one, plus a small negative bias). The
-#' RI-CLPM is unbiased (within .002 of zero) and close to nominal (.036 to .074, the only two cells
-#' more than about two Monte Carlo SEs from .05), though at N = 30 its fits raised warnings in 19%
-#' (trait variance .5) and 7% (trait variance 1) of replications (table below).
+#' One thing I didn't expect: AR(1) without centering is less biased with a trait than without one.
+#' Averaged over N, its estimate is `r f3(avg_est('no_wcen_ar', 0))` on the CLPM data,
+#' `r f3(avg_est('no_wcen_ar', .5))` at trait variance .5, and `r f3(avg_est('no_wcen_ar', 1))` at 1.
+#' I don't know why. My guess is that its positive bias on CLPM data is being offset by a negative
+#' one from the trait, like the one that hits lagged y. I wouldn't count on it.
 #' 
-#' One surprise: AR(1) without centering does better with a trait than without one. Its average
-#' estimate is about .008 at trait variance .5 (the rate creeps from .071 to .177) and within .001
-#' of zero at 1 (rates of .058 to .073). I don't know why. My guess is that its positive bias on CLPM
-#' data is being offset by a negative one from the trait, like the one that hits lagged y, and that
-#' at trait variance 1 they roughly cancel. I wouldn't count on it.
-#' 
-
-#+echo = F, results = 'asis'
-riclpm_summary_file <- 'riclpm_sims_r1000/riclpm_sims_summary.RDS'
-if(!file.exists(riclpm_summary_file)){
-  stop('Expected the RI-CLPM simulation summary at ', riclpm_summary_file, '; run sim_riclpm.R with 1000 reps to create it.')
-}
-riclpm_sum <- as.data.frame(readRDS(riclpm_summary_file))
-
-spec_labels <- c(
-  naive = 'y ~ x_lag (naive)',
-  no_wcen_ar = 'y ~ x_lag, AR(1)',
-  no_wcen_ylag = 'y ~ y_lag + x_lag',
-  wcen_ar = 'centered x_lag, AR(1)',
-  wcen_ylag = 'centered y_lag + x_lag (nlme)',
-  wcen_ylag_l4 = 'centered y_lag + x_lag (lme4, Satterthwaite)',
-  wcen_ylag_l4_wcenre = 'centered y_lag + x_lag (lme4, Satterthwaite, random slope)',
-  riclpm = 'RI-CLPM')
-
-expected_cells <- rbind(
-  expand.grid(trait_var = 0, spec = 'naive', n = N_seq, stringsAsFactors = FALSE),
-  expand.grid(trait_var = c(.5, 1), spec = names(spec_labels), n = N_seq, stringsAsFactors = FALSE))
-missing_cells <- dplyr::anti_join(expected_cells, riclpm_sum, by = c('trait_var', 'spec', 'n'))
-if(nrow(missing_cells) > 0 || nrow(riclpm_sum) != nrow(expected_cells)){
-  stop('RI-CLPM simulation summary has ', nrow(riclpm_sum), ' cells; expected ', nrow(expected_cells),
-       '. Missing: ', paste(apply(missing_cells, 1, paste, collapse = '/'), collapse = ', '))
-}
-if(any(riclpm_sum$reps != 1000)){
-  stop('Every RI-CLPM simulation cell should have 1000 replications; these do not: ',
-       paste(with(riclpm_sum[riclpm_sum$reps != 1000, ], paste(trait_var, spec, n, sep = '/')), collapse = ', '))
-}
-if(any(riclpm_sum$n_valid + riclpm_sum$failed != riclpm_sum$reps)){
-  stop('Some RI-CLPM simulation cells have replications that are neither valid nor recorded as failed.')
-}
-
-table_n <- c(30, 150, 300, 1050)
-riclpm_wide <- function(value, digits){
-  riclpm_sum %>%
-    filter(trait_var > 0, n %in% table_n) %>%
-    mutate(cell = formatC(.data[[value]], format = 'f', digits = digits),
-           col = factor(paste0('trait ', trait_var, ', N = ', n),
-                        levels = paste0('trait ', rep(c(.5, 1), each = length(table_n)), ', N = ', table_n)),
-           model = factor(spec_labels[spec], levels = spec_labels)) %>%
-    select(model, col, cell) %>%
-    spread(col, cell) %>%
-    arrange(model)
-}
-
-print(knitr::kable(riclpm_wide('fp_rate', 3),
-                   caption = paste0('RI-CLPM data (1,000 replications per cell): proportion of replications with p < .05 for lagged x (nominal rate .05). ',
-                                    'The centered AR(1) cells at N = 300 are probably affected by the optimizer problem described in the footnote.')))
-print(knitr::kable(riclpm_wide('mean_est', 3),
-                   caption = 'RI-CLPM data: average estimate of the effect of lagged x (true value 0).'))
-
-warn_cells <- riclpm_sum %>%
-  filter(reps_with_warnings > 0) %>%
-  mutate(model = factor(spec_labels[spec], levels = spec_labels)) %>%
-  arrange(model, trait_var, n)
-warn_table <- warn_cells %>%
-  group_by(model, trait_var) %>%
-  summarize(total = sum(reps_with_warnings),
-            `by N` = paste0(n, ': ', reps_with_warnings, collapse = '; '),
-            .groups = 'drop')
-print(knitr::kable(warn_table %>% rename(`trait variance` = trait_var),
-                   caption = 'Replications (out of 1,000 per cell) that raised at least one warning; their estimates are kept in the rates above.'))
-
-failed_new <- riclpm_sum %>% filter(failed > 0)
-if(nrow(failed_new) > 0){
-  cat('\n\nReplications that failed to fit (left out of the rates above):\n\n')
-  cat(paste0('- ', spec_labels[failed_new$spec], ', trait variance ', failed_new$trait_var,
-             ', N = ', failed_new$n, ': ', failed_new$failed, collapse = '\n'), '\n\n')
-}
-
-#+echo = F, fig.width = 9, fig.height = 5.5
-library(ggplot2)
-clpm_2018_fp <- rep_summary %>%
-  filter(!failed) %>%
-  mutate(spec = names(spec_labels)[match(model, spec_labels)], trait_var = 0) %>%
-  select(trait_var, spec, n, fp_rate = fp)
-if(any(is.na(clpm_2018_fp$spec))) stop('A 2018 model label does not match any label in spec_labels.')
-fp_plot_df <- dplyr::bind_rows(clpm_2018_fp, riclpm_sum %>% select(trait_var, spec, n, fp_rate)) %>%
-  mutate(model = factor(spec_labels[spec], levels = spec_labels),
-         trait = factor(trait_var, levels = c(0, .5, 1), labels = c('0 (CLPM)', '.5', '1')))
-print(ggplot(fp_plot_df, aes(x = n, y = fp_rate, color = trait, shape = trait)) +
-        geom_hline(yintercept = .05, color = 'gray40') +
-        geom_line(linewidth = .6) +
-        geom_point(size = 2) +
-        scale_y_log10(breaks = c(.025, .05, .1, .25, .5, 1), labels = c('.025', '.05', '.1', '.25', '.5', '1')) +
-        scale_color_manual(values = c('#8a8a8a', '#2a78d6', '#eb6834')) +
-        facet_wrap(~ model, ncol = 4, labeller = label_wrap_gen(width = 28)) +
-        labs(x = 'Sample size', y = 'Proportion of false positives (log scale)',
-             color = 'Trait variance', shape = 'Trait variance') +
-        theme_minimal() +
-        theme(legend.position = 'bottom'))
-
-#'
 #' So what should you do? Separate within-person from between-person variation at the latent level,
 #' with the RI-CLPM or with latent person-mean centering (as in DSEM), though only the RI-CLPM was
-#' simulated here. Observed person-mean centering plus centered lagged y comes close (unbiased, with
-#' rates of roughly .05 to .10), which may be fine as long as you know it runs a little hot.
+#' simulated here. Observed person-mean centering plus centered lagged y comes close, which may be
+#' fine as long as you know it runs a little hot.
 #' 
-#' There's one generating model and one set of parameters here (12 waves, stability .7, a
+#' # Limits
+#' 
+#' There are two generating models and one set of parameters here (12 waves, stability .7, a
 #' within-wave correlation of .5, equal and uncorrelated traits), so I can't say how any of this
-#' scales. Only the null was simulated, so nothing here speaks to power. And the new runs have
-#' 1,000 replications per cell, not 10,000.
+#' scales. Only the null was simulated, so nothing here speaks to power.
 #' 
