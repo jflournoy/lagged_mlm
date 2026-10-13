@@ -152,7 +152,7 @@ plot_spec <- function(spec_name){
     geom_hline(yintercept = .05, color = 'gray30', linetype = 'dashed') +
     geom_linerange(aes(ymin = fp_lo, ymax = fp_hi), position = dodge) +
     geom_line(position = dodge, linewidth = .5) +
-    geom_point(position = dodge, size = 2) +
+    geom_point(position = dodge, size = 2, show.legend = TRUE) +
     scale_y_log10(limits = c(fp_floor, 1), breaks = c(.01, .025, .05, .1, .25, .5, 1),
                   labels = c('.01', '.025', '.05', '.1', '.25', '.5', '1')) +
     n_scale() + trait_scales() +
@@ -163,7 +163,7 @@ plot_spec <- function(spec_name){
     geom_hline(yintercept = 0, color = 'gray30', linetype = 'dashed') +
     geom_linerange(aes(ymin = mean_est - 2 * est_se, ymax = mean_est + 2 * est_se), position = dodge) +
     geom_line(position = dodge, linewidth = .5) +
-    geom_point(position = dodge, size = 2) +
+    geom_point(position = dodge, size = 2, show.legend = TRUE) +
     n_scale() + trait_scales() +
     labs(y = 'Average estimate of lagged x (true value 0)', title = 'Average estimate') +
     sim_theme()
@@ -773,7 +773,7 @@ if(nrow(problem_table) == 0){
 # here, so if new results contradict it the page stops instead of publishing
 # prose that no longer matches the numbers.
 check_claim <- function(ok, claim){
-  if(!isTRUE(ok)) stop('The text claims ', claim, ', but these results do not show it. Revise "What\'s going on?".')
+  if(!isTRUE(ok)) stop('The text claims ', claim, ', but these results do not show it. Revise the sentence that says so (in "What\'s going on?" or that model\'s section).')
 }
 pct_floor <- function(x) paste0(floor(100 * x), '%')
 naive <- cells('naive', c(0, .5, 1))
@@ -795,7 +795,16 @@ check_claim(avg_est('wcen_ar', .5) < 0 && avg_est('wcen_ar', 1) < 0, 'centered x
 check_claim(max(abs(wcen_ylag_all$mean_est)) < .02, 'centered x with centered lagged y is close to unbiased')
 check_claim(mean(wcen_ylag_all$fp_rate) > .05 && mean(wcen_ylag_all$fp_rate) < .10 && n_hot('wcen_ylag', c(0, .5, 1)) > 0,
             'centered x with centered lagged y runs a little hot (pooled rate between .05 and .10, some cells clearly above .05)')
-check_claim(n_off('no_wcen_ylag', 0) <= 2, 'lagged y controls the error rate on the CLPM data (at most 2 of 10 cells more than 2 SE from .05)')
+# "Calibrated" here means every rate within .01 of .05, beyond Monte Carlo noise.
+calibrated <- function(d) all(abs(d$fp_rate - .05) - 2 * null_se(d) < .01)
+check_claim(calibrated(ylag0), 'lagged y controls the error rate on the CLPM data')
+check_claim(calibrated(ric), 'the RI-CLPM error rate is close to nominal')
+check_claim(avg_est('wcen_ar', 0) < 0 && rate_at('wcen_ar', 0, max_n) > rate_at('wcen_ar', 0, 30),
+            'centered x with AR(1) is biased negative on the CLPM data, with the rate rising with N (2018 remark)')
+check_claim(mean(cells('wcen_ylag_l4', c(0, .5, 1))$fp_rate) > .05, 'the Satterthwaite version still runs above .05 (2018 remark: "Bummer")')
+check_claim(n_hot('wcen_ylag_l4_wcenre', c(0, .5, 1)) <= n_hot('wcen_ylag_l4', c(0, .5, 1)) &&
+              mean(cells('wcen_ylag_l4_wcenre', c(0, .5, 1))$mean_est) < 0,
+            'the random slope helps a little but adds a small negative bias (2018 remark)')
 check_claim(max(abs(ric$mean_est)) < .02, 'the RI-CLPM is unbiased')
 check_claim(abs(avg_est('no_wcen_ar', .5)) < abs(avg_est('no_wcen_ar', 0)) && abs(avg_est('no_wcen_ar', 1)) < abs(avg_est('no_wcen_ar', 0)),
             'the AR(1) bias is smaller with a trait than on CLPM data')
