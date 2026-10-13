@@ -67,6 +67,8 @@ n_chunks <- ceiling(reps_per_cell / chunk_size)
 
 specs <- list(
   naive                    = NULL,
+  sea                      = NULL,
+  wcen_x_raw_ylag          = NULL,
   no_wcen_ar               = list(wcen = FALSE, use_lag_y = FALSE, use_lme4 = FALSE, wcen_re = FALSE),
   no_wcen_ylag             = list(wcen = FALSE, use_lag_y = TRUE,  use_lme4 = FALSE, wcen_re = FALSE),
   wcen_ar                  = list(wcen = TRUE,  use_lag_y = FALSE, use_lme4 = FALSE, wcen_re = FALSE),
@@ -101,6 +103,28 @@ run_naive <- function(n, gen_mod) {
   data.frame(n = n, x_lag_p = tt["x_lag", "p-value"], x_lag_bias = tt["x_lag", "Value"])
 }
 
+# The within/between model used for the month-level lagged analyses in the SEA
+# papers: lagged person-mean-centered x, the person mean (grand-mean centered),
+# and time, with a random intercept; no prior outcome and no AR structure. (The
+# papers fit it in brms with weak normal(0, 10) priors; lme gives essentially the
+# same estimates.)
+run_sea <- function(n, gen_mod) {
+  d <- generate_data(n = n, gen_mod = gen_mod, wcen = TRUE)
+  d$time_c <- d$wave - mean(d$wave)
+  fit <- lme(y ~ 1 + wcen_x_lag + gcen_x + time_c, random = ~ 1 | id, data = d, na.action = na.omit)
+  tt <- summary(fit)$tTable
+  data.frame(n = n, x_lag_p = tt["wcen_x_lag", "p-value"], x_lag_bias = tt["wcen_x_lag", "Value"])
+}
+
+# Centered x (within and between) with the raw, uncentered lagged outcome and a
+# random intercept: what you get if you center x but not the lagged y.
+run_wcen_x_raw_ylag <- function(n, gen_mod) {
+  d <- generate_data(n = n, gen_mod = gen_mod, wcen = TRUE)
+  fit <- lme(y ~ 1 + y_lag + wcen_x_lag + gcen_x, random = ~ 1 | id, data = d, na.action = na.omit)
+  tt <- summary(fit)$tTable
+  data.frame(n = n, x_lag_p = tt["wcen_x_lag", "p-value"], x_lag_bias = tt["wcen_x_lag", "Value"])
+}
+
 fix_ov_resid <- paste(c(paste0("x", 1:12, " ~~ 0*x", 1:12),
                         paste0("y", 1:12, " ~~ 0*y", 1:12)), collapse = "\n")
 
@@ -120,6 +144,8 @@ one_rep <- function(n, gen_mod, spec_name) {
     r <- withCallingHandlers({
       if (spec_name == "riclpm") run_riclpm(n, gen_mod) else
         if (spec_name == "naive") run_naive(n, gen_mod) else
+        if (spec_name == "sea") run_sea(n, gen_mod) else
+        if (spec_name == "wcen_x_raw_ylag") run_wcen_x_raw_ylag(n, gen_mod) else
           do.call(run_model, c(list(n = n, gen_mod = gen_mod), specs[[spec_name]]))
     }, warning = function(w) {
       n_warn <<- n_warn + 1L
@@ -135,15 +161,24 @@ one_rep <- function(n, gen_mod, spec_name) {
   })
 }
 
-tasks <- expand.grid(chunk = seq_len(n_chunks), n = N_seq, spec = names(specs),
-                     trait_var = trait_vars, stringsAsFactors = FALSE)
-# Trait variance 0 is the CLPM generator used in 2018; every spec is rerun on
-# it here (with nlme's default optimizer) except the RI-CLPM fit, whose
-# random-intercept variance would sit at its boundary of zero.
-tasks <- tasks[tasks$trait_var > 0 | tasks$spec != "riclpm", ]
-# One seed per chunk, fixed by the chunk's position in the (deterministic)
-# expand.grid order, before any reordering for scheduling.
-tasks$seed <- 20261012L + seq_len(nrow(tasks))
+# One seed per chunk, fixed by the chunk's position in a deterministic
+# expand.grid order, before any reordering for scheduling. Specs added after the
+# first full run get their own seed range each (`later_specs`, spec = seed base),
+# so adding one never changes the seeds of chunks that already exist.
+later_specs <- c(sea = 30261012L, wcen_x_raw_ylag = 40261012L)
+make_tasks <- function(spec_names, seed_base) {
+  tk <- expand.grid(chunk = seq_len(n_chunks), n = N_seq, spec = spec_names,
+                    trait_var = trait_vars, stringsAsFactors = FALSE)
+  # Trait variance 0 is the CLPM generator used in 2018; every spec is rerun on
+  # it here (with nlme's default optimizer) except the RI-CLPM fit, whose
+  # random-intercept variance would sit at its boundary of zero.
+  tk <- tk[tk$trait_var > 0 | tk$spec != "riclpm", ]
+  tk$seed <- seed_base + seq_len(nrow(tk))
+  tk
+}
+tasks <- do.call(rbind, c(list(make_tasks(setdiff(names(specs), names(later_specs)), 20261012L)),
+                          lapply(names(later_specs), function(sp) make_tasks(sp, later_specs[[sp]]))))
+if (anyDuplicated(tasks$seed)) stop("seed collision between chunks")
 tasks$file <- file.path(out_dir, sprintf("v%s_%s_n%04d_c%03d.RDS",
                                          tasks$trait_var, tasks$spec, tasks$n, tasks$chunk))
 # Biggest jobs first so the slow cells don't straggle at the end.

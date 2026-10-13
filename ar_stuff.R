@@ -57,10 +57,12 @@ if(!all(needed_cols %in% names(sim_sum))){
 
 spec_labels <- c(
   naive = 'y ~ x_lag (naive)',
+  sea = 'centered x_lag + person mean (SEA papers)',
   no_wcen_ar = 'y ~ x_lag, AR(1)',
   no_wcen_ylag = 'y ~ y_lag + x_lag',
   wcen_ar = 'centered x_lag, AR(1)',
   wcen_ylag = 'centered y_lag + x_lag (nlme)',
+  wcen_x_raw_ylag = 'raw y_lag + centered x_lag',
   wcen_ylag_l4 = 'centered y_lag + x_lag (lme4, Satterthwaite)',
   wcen_ylag_l4_wcenre = 'centered y_lag + x_lag (lme4, Satterthwaite, random slope)',
   riclpm = 'RI-CLPM')
@@ -71,7 +73,7 @@ expected_cells <- rbind(
   expand.grid(trait_var = c(0, .5, 1), spec = setdiff(names(spec_labels), 'riclpm'), n = N_seq,
               stringsAsFactors = FALSE),
   expand.grid(trait_var = c(.5, 1), spec = 'riclpm', n = N_seq, stringsAsFactors = FALSE))
-if(nrow(expected_cells) != 230) stop('Internal error: the expected design should have 230 cells, not ', nrow(expected_cells))
+if(nrow(expected_cells) != 290) stop('Internal error: the expected design should have 290 cells, not ', nrow(expected_cells))
 
 cell_key <- function(d) paste(d$trait_var, d$spec, d$n, sep = '/')
 if(anyDuplicated(cell_key(sim_sum))){
@@ -125,8 +127,8 @@ sim_theme <- function(){
 }
 n_scale <- function() scale_x_sqrt(breaks = N_seq, name = 'Sample size (N, square-root scale)')
 trait_scales <- function(){
-  list(scale_color_manual(values = trait_colors, limits = trait_levels, drop = FALSE, name = 'Trait variance'),
-       scale_shape_manual(values = trait_shapes, limits = trait_levels, drop = FALSE, name = 'Trait variance'))
+  list(scale_color_manual(values = trait_colors, limits = trait_levels, drop = FALSE, name = 'Data-generating model\ntrait variance'),
+       scale_shape_manual(values = trait_shapes, limits = trait_levels, drop = FALSE, name = 'Data-generating model\ntrait variance'))
 }
 
 # One plot pair per model specification, from the summary: the false-positive
@@ -452,8 +454,17 @@ summary(cont1.yAR)
 #' ## How the simulations work
 #' 
 #' Every simulation has a null cross-lag: over 12 waves, x and y are each stable (.7) and correlated
-#' within each wave (.5), but neither affects the other. For each generating model (the CLPM, or
-#' the RI-CLPM with trait variance .5 or 1) and each sample size (N = `r paste(N_seq, collapse = ', ')`),
+#' within each wave (.5), but neither affects the other. The data come from three data-generating
+#' models, which are the three colors in every plot:
+#'
+#' - the CLPM (gray), with no stable differences between people (trait variance 0; the same
+#'   generator as the 2018 runs);
+#' - the RI-CLPM with trait variance .5 (blue);
+#' - the RI-CLPM with trait variance 1 (orange).
+#'
+#' Every model below is fit to data from all three, except the RI-CLPM itself, which is only fit
+#' to the RI-CLPM data (on CLPM data its trait variances would sit at zero). For each
+#' data-generating model and each sample size (N = `r paste(N_seq, collapse = ', ')`),
 #' `sim_riclpm.R` draws `r format(expected_reps, big.mark = ',')` datasets, fits each model below,
 #' and records the estimate and _p_-value for lagged x. A fit that errors or doesn't converge counts
 #' as a failure and is left out of that cell (the table at the end shows how many); fits that only
@@ -470,7 +481,7 @@ if(results_dir != 'riclpm_sims_r10000'){
 }
 
 #' The data generation and model fitting code is below. `sim_riclpm.R` reuses these definitions
-#' (and the generators above), and adds the naive model and the RI-CLPM fit. Running it
+#' (and the generators above), and adds the naive model, the SEA-paper model, and the RI-CLPM fit. Running it
 #' (`Rscript sim_riclpm.R 10000 <cores>`) writes the summary this page reads,
 #' `riclpm_sims_summary.RDS`, into the folder named in `results_dir` at the top.
 #' 
@@ -573,6 +584,24 @@ run_model <- function(n = 250, gen_mod, wcen = FALSE, use_lag_y = FALSE, use_lme
 plot_spec('naive')
 
 #'
+#' ## The within/between model from the SEA papers
+#'
+#' ```
+#' lag1.sea <- lme(y ~ 1 + wcen_x_lag + gcen_x + time_c, random = ~ 1 | id, data = someData_long,
+#'                 na.action = na.omit)
+#' ```
+#'
+#' This is the model behind the month-level lagged analyses in our SEA papers: x is split into
+#' each person's deviation from their own mean (lagged one month) and their mean itself (grand-mean
+#' centered), with a time term and a random intercept. The papers fit it in brms with weak priors;
+#' here it's fit with lme, which should give essentially the same estimates. Like the naive model, it
+#' has nothing for the prior month's y.
+#'
+
+#+echo = T, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+plot_spec('sea')
+
+#'
 #' ## Using AR residual structure to account for stability
 #'
 #' ```
@@ -642,7 +671,7 @@ plot_spec('wcen_ar')
 #' 
 #' Note that when we within-person center the IV, x, we also within-person center the lagged DV, y, and include that (the 
 #' between-person component of y is redundant with the random intercept). If you don't do this, wow, the false positive 
-#' error rate goes way up. I'm not quite sure why this is (simulations not shown).
+#' error rate goes way up. I'm not quite sure why this is (see next sim).
 #' 
 #' ```
 #' lag1.yAR <-lme(y ~ 1 + wcen_y_lag + wcen_x_lag + gcen_x, random = ~ 1 | id, data = someData_long,
@@ -658,6 +687,26 @@ plot_spec('wcen_ylag')
 #' standard errors, or the DF being used. Perhaps another possibility is that the random effects are misspecified. I'm not
 #' sure why this is, but we can test whether using the Satterthwaite correction, or including a random effect of the within-person
 #' predictor helps.
+#'
+#' ## Centered x with raw lagged y
+#'
+#' ```
+#' lag1.rawy <- lme(y ~ 1 + y_lag + wcen_x_lag + gcen_x, random = ~ 1 | id, data = someData_long,
+#'                  na.action = na.omit)
+#' ```
+#'
+#' This is what happens if you center x but leave the lagged outcome raw.
+#'
+
+#+echo = T, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+plot_spec('wcen_x_raw_ylag')
+
+#'
+#' My best guess at why: each person's mean of x is taken over all 12 waves, including this month,
+#' so centered lagged x carries a little of this month's shock to x (with a minus sign), and this
+#' month's shock to x is correlated with this month's shock to y. Centered lagged y carries the same
+#' kind of piece of this month's y, which seems to soak most of that up; raw lagged y doesn't, so
+#' lagged x picks it up as a negative effect. I haven't checked this beyond these simulations.
 #'
 #'
 #' ## Lagged y with within-person-centering, Satterthwaite correction
@@ -734,9 +783,9 @@ results_table <- dplyr::inner_join(rate_wide, est_wide, by = c('spec', 'trait_va
 if(nrow(results_table) != nrow(expected_cells) / length(N_seq)) stop('Results table lost or gained rows in the join.')
 results_table <- results_table %>%
   mutate(model = factor(spec_labels[spec], levels = spec_labels),
-         `trait variance` = factor(trait_label(trait_var), levels = trait_levels)) %>%
-  arrange(model, `trait variance`) %>%
-  select(model, `trait variance`, paste0('rate, N = ', table_n), paste0('estimate, N = ', table_n))
+         `data-generating trait variance` = factor(trait_label(trait_var), levels = trait_levels)) %>%
+  arrange(model, `data-generating trait variance`) %>%
+  select(model, `data-generating trait variance`, paste0('rate, N = ', table_n), paste0('estimate, N = ', table_n))
 print(knitr::kable(results_table, align = c('l', 'l', rep('r', 2 * length(table_n))),
                    caption = paste0('Proportion of replications with p < .05 for lagged x (nominal .05), and the average estimate ',
                                     '(true value 0), at three sample sizes. ', format(expected_reps, big.mark = ','),
@@ -753,13 +802,13 @@ problem_table <- sim_sum %>%
             .groups = 'drop') %>%
   filter(failed_total > 0 | warn_total > 0) %>%
   mutate(model = factor(spec_labels[spec], levels = spec_labels),
-         `trait variance` = factor(trait_label(trait_var), levels = trait_levels),
+         `data-generating trait variance` = factor(trait_label(trait_var), levels = trait_levels),
          `failed fits` = failed_total,
          `most failures in one cell (N)` = ifelse(failed_total > 0, paste0(failed_max, ' (', failed_max_n, ')'), ''),
          `fits with warnings` = warn_total,
          `most warnings in one cell (N)` = ifelse(warn_total > 0, paste0(warn_max, ' (', warn_max_n, ')'), '')) %>%
-  arrange(model, `trait variance`) %>%
-  select(model, `trait variance`, `failed fits`, `most failures in one cell (N)`, `fits with warnings`, `most warnings in one cell (N)`)
+  arrange(model, `data-generating trait variance`) %>%
+  select(model, `data-generating trait variance`, `failed fits`, `most failures in one cell (N)`, `fits with warnings`, `most warnings in one cell (N)`)
 if(nrow(problem_table) == 0){
   cat('\n\nNo fit failed or raised a warning in any cell.\n\n')
 } else {
@@ -789,6 +838,10 @@ ric_30 <- ric[ric$n == 30, ]
 rate_at <- function(spec, tv, n) cells(spec, tv, n)$fp_rate
 
 check_claim(min(naive$fp_rate) > .9, 'the naive model rejects in nearly every replication')
+rawy <- cells('wcen_x_raw_ylag', c(0, .5, 1))
+check_claim(mean(rawy$fp_rate) > mean(cells('wcen_ylag', c(0, .5, 1))$fp_rate) + .2,
+            'leaving lagged y raw when x is centered makes the error rate go way up (2018 remark)')
+check_claim(all(rawy$mean_est < 0), 'with raw lagged y, centered lagged x picks up a negative effect')
 check_claim(max(abs(ylag0$mean_est)) < .01, 'lagged y is unbiased on the CLPM data')
 check_claim(avg_est('no_wcen_ylag', .5) < 0 && avg_est('no_wcen_ylag', 1) < 0, 'lagged y is biased negative with traits')
 check_claim(all(rate_at('no_wcen_ylag', c(.5, 1), max_n) > rate_at('no_wcen_ylag', c(.5, 1), 30)),
@@ -826,6 +879,16 @@ check_claim(abs(avg_est('no_wcen_ar', .5)) < abs(avg_est('no_wcen_ar', 0)) && ab
 #' $y_{t-1}$ causes $y_{t}$ and is correlated with $x_{t-1}$, so a regression of $y_{t}$ on
 #' $x_{t-1}$ alone reads that path as an effect. Stable traits add a second path, through
 #' between-person differences in people's typical levels of x and y.
+#' 
+#' When is leaving out $y_{t-1}$ not a problem? Write a person's departure from their own usual level
+#' of y as $y_{t} = \phi y_{t-1} + e_{t}$. A model without $y_{t-1}$ then picks up $\phi$ times the
+#' within-person covariance of $x_{t-1}$ and $y_{t-1}$. So it's only safe in two cases: y has no
+#' within-person stability ($\phi = 0$, so month-to-month departures from a person's usual level are
+#' just noise), or x and y aren't correlated within person at the same time point (a month that's high
+#' on x for someone isn't also high on y). Neither seems likely for most things we'd measure monthly,
+#' and if you want to lean on one, you'd need to show it rather than assume it. Without $y_{t-1}$, the
+#' model still answers a real question (does last month's x go along with this month's y?), just not
+#' whether x adds anything beyond y's own momentum.
 #' 
 #' Adding lagged y fixes it on the CLPM data (rates from `r rng(ylag0$fp_rate)`, average estimates
 #' within `r max_abs(ylag0$mean_est)` of zero). But lagged y is the true model for CLPM data, so
