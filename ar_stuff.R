@@ -5,14 +5,15 @@
 #'   html_document:
 #'     toc: true
 #'     toc_float: true
+#'     code_folding: hide
 #'---
 
-#' In 2018 I was helping a lab fit multilevel models to monthly data, asking whether one variable
-#' this month predicts another next month. I suspected the usual way of setting that up finds effects
-#' that aren't there, so I simulated data where x and y move together over time but neither causes the
-#' other, and checked how often different models say otherwise. The short version: leave out last
-#' month's y and you get a false effect nearly every time, and when people also differ in stable ways,
-#' the usual fixes don't fully work either. The details, and what I'd do instead, are below.
+#' In 2018 I started a postdoc and was collaborating on decisions about how to model monthly data over the course of a year. The goal was to see if some variable 
+#' measured the *previous* month ($x_{t-1}$) predicts the outcome *this* month ($y_{t}$). Having worked on several longitudinal datasets in graduate school, I had learned that it is crucial to 
+#' control for the *previous* month's level of the outcome variable, or else risk spurious effects driven by non-causal correlations between the constructs being measured. I wanted to see if the way collaborators were proposing to run these analyses was really problematic, and I wanted to explore any other ways to correct for these kinds of confounds. To do so, I simulated data where x and y move together over time but neither causes the
+#' other, and checked how often we conclude erroneously that $x_{t-1} \rightarrow y_{t}$. The short version: leave out last
+#' month's y and you get a high false positive rate, and when people also differ in stable ways on these constructs,
+#' some fixes that work in some situations don't fully work.
 
 #+echo = T, warning = F, error = F, message = F
 library(simsem)
@@ -34,7 +35,7 @@ expected_reps <- as.integer(Sys.getenv("LAGGED_EXPECTED_REPS", "10000"))
 
 # install.packages(c('simsem', 'nlme', 'lmerTest', 'lme4', 'semPlot', 'dplyr', 'tidyr', 'ggplot2'))
 
-#+echo = F
+#+echo = T
 if(is.na(expected_reps) || expected_reps < 1){
   stop('LAGGED_EXPECTED_REPS must be a positive integer; got "', Sys.getenv("LAGGED_EXPECTED_REPS"), '".')
 }
@@ -194,7 +195,7 @@ n_cells <- function(spec, tv) nrow(cells(spec, tv))
 max_n <- max(N_seq)
 
 
-#+echo = F
+#+echo = T
 make_clpm_lavaan <- function(generate = T, generating_params = list(s = .7,cl = 0,r = 1,co = .5)){
   if(generate){
     b <- lapply(generating_params, paste0, '*')
@@ -463,7 +464,7 @@ summary(cont1.yAR)
 #' nlme's default optimizer, which fixes that.
 #' 
 
-#+echo = F, results = 'asis'
+#+echo = T, results = 'asis'
 if(results_dir != 'riclpm_sims_r10000'){
   cat('\n\n**Note: this page was rendered from `', results_dir, '`, not the published results in `riclpm_sims_r10000`.**\n\n', sep = '')
 }
@@ -568,7 +569,7 @@ run_model <- function(n = 250, gen_mod, wcen = FALSE, use_lag_y = FALSE, use_lme
 #' of y.
 #'
 
-#+echo = F, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+#+echo = T, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
 plot_spec('naive')
 
 #'
@@ -581,7 +582,7 @@ plot_spec('naive')
 #' ```
 #'
 
-#+echo = F, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+#+echo = T, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
 plot_spec('no_wcen_ar')
 
 #'
@@ -601,7 +602,7 @@ plot_spec('no_wcen_ar')
 #' ```
 #' 
 
-#+echo = F, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+#+echo = T, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
 plot_spec('no_wcen_ylag')
 
 #'
@@ -630,7 +631,7 @@ plot_spec('no_wcen_ylag')
 #' ```
 #'
 
-#+echo = F, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+#+echo = T, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
 plot_spec('wcen_ar')
 
 #'
@@ -649,7 +650,7 @@ plot_spec('wcen_ar')
 #' ```
 #'
 
-#+echo = F, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+#+echo = T, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
 plot_spec('wcen_ylag')
 
 #'
@@ -671,7 +672,7 @@ plot_spec('wcen_ylag')
 #' ```
 #' 
 
-#+echo = F, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+#+echo = T, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
 plot_spec('wcen_ylag_l4')
 
 #'
@@ -689,7 +690,7 @@ plot_spec('wcen_ylag_l4')
 #' ```
 #' 
 
-#+echo = F, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+#+echo = T, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
 plot_spec('wcen_ylag_l4_wcenre')
 
 #'
@@ -709,14 +710,14 @@ plot_spec('wcen_ylag_l4_wcenre')
 #' would sit at their boundary of zero.
 #' 
 
-#+echo = F, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
+#+echo = T, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
 plot_spec('riclpm')
 
 #' 
 #' ## The results in two tables
 #' 
 
-#+echo = F, results = 'asis'
+#+echo = T, results = 'asis'
 table_n <- c(30, 300, max_n)
 tab_cells <- sim_sum[sim_sum$n %in% table_n, ]
 tab_cells$cell_fp <- f3(tab_cells$fp_rate)
@@ -769,7 +770,7 @@ if(nrow(problem_table) == 0){
                                       ' per row. Rows with neither are left out.')))
 }
 
-#+echo = F
+#+echo = T
 # The text below states some results in words. Each such statement is checked
 # here, so if new results contradict it the page stops instead of publishing
 # prose that no longer matches the numbers.
