@@ -5,6 +5,11 @@
 # (y on lagged x with a random intercept and nothing else), including on the
 # CLPM data (trait variance 0) used for the original simulations.
 #
+# All nlme fits use nlme's default optimizer (nlminb). The 2018 run_model()
+# used lmeControl(opt = "optim"), which stops short of the maximum for the
+# centered AR(1) model at N around 300; a fit that fails to converge is
+# recorded as a failure, never refit with another optimizer.
+#
 # make_riclpm_lavaan() defines x and y as indicators of the random intercepts
 # and within-person deviations but does not fix their residual variances, and
 # lavaan::simulateData() then gives each observed variable a residual variance
@@ -91,8 +96,7 @@ run_riclpm <- function(n, gen_mod) {
 # The naive model: no lagged outcome, no residual autocorrelation.
 run_naive <- function(n, gen_mod) {
   d <- generate_data(n = n, gen_mod = gen_mod, wcen = FALSE)
-  fit <- lme(y ~ 1 + x_lag, random = ~ 1 | id, data = d, na.action = na.omit,
-             control = lmeControl(opt = "optim"))
+  fit <- lme(y ~ 1 + x_lag, random = ~ 1 | id, data = d, na.action = na.omit)
   tt <- summary(fit)$tTable
   data.frame(n = n, x_lag_p = tt["x_lag", "p-value"], x_lag_bias = tt["x_lag", "Value"])
 }
@@ -133,9 +137,10 @@ one_rep <- function(n, gen_mod, spec_name) {
 
 tasks <- expand.grid(chunk = seq_len(n_chunks), n = N_seq, spec = names(specs),
                      trait_var = trait_vars, stringsAsFactors = FALSE)
-# Trait variance 0 is the CLPM the original simulations already cover; only
-# the naive model (not in the originals) is run on it here.
-tasks <- tasks[tasks$trait_var > 0 | tasks$spec == "naive", ]
+# Trait variance 0 is the CLPM generator used in 2018; every spec is rerun on
+# it here (with nlme's default optimizer) except the RI-CLPM fit, whose
+# random-intercept variance would sit at its boundary of zero.
+tasks <- tasks[tasks$trait_var > 0 | tasks$spec != "riclpm", ]
 # One seed per chunk, fixed by the chunk's position in the (deterministic)
 # expand.grid order, before any reordering for scheduling.
 tasks$seed <- 20261012L + seq_len(nrow(tasks))

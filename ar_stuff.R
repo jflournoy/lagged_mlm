@@ -314,14 +314,12 @@ run_model <- function(n = 250, gen_mod, wcen = FALSE, use_lag_y = FALSE, use_lme
         }
       } else {
         lag1.yAR <-lme(y ~ 1 + wcen_y_lag + wcen_x_lag + gcen_x, random = ~ 1 | id, data = someData_long,
-                       na.action = na.omit,
-                       control=lmeControl(opt = "optim")) 
+                       na.action = na.omit)
       }
     } else {
       lag1.yAR <-lme(y ~ 1 + wcen_x_lag + gcen_x, random = ~ 1 | id, data = someData_long,
                      correlation = corAR1(form = ~ wave | id),
-                     na.action = na.omit,
-                     control=lmeControl(opt = "optim"))
+                     na.action = na.omit)
     }
     if(use_lme4){
       asum <- coef(summary(lag1.yAR, ddf = 'Satterthwaite'))
