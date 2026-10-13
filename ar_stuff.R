@@ -1,4 +1,5 @@
 #'---
+#' title: "Lagged effects in multilevel models: a null simulation"
 #' author: John Flournoy
 #' output: 
 #'   html_document:
