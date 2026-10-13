@@ -92,6 +92,12 @@ if(any(sim_sum$n_valid + sim_sum$failed != sim_sum$reps)){
   stop('Some simulation cells have replications that are neither valid nor recorded as failed: ',
        paste(cell_key(sim_sum[sim_sum$n_valid + sim_sum$failed != sim_sum$reps, ]), collapse = ', '))
 }
+if(anyNA(sim_sum[needed_cols])){
+  stop('Simulation summary has missing values in: ', paste(needed_cols[sapply(sim_sum[needed_cols], anyNA)], collapse = ', '))
+}
+if(any(sim_sum$fp_rate < 0 | sim_sum$fp_rate > 1) || any(sim_sum$reps_with_warnings < 0 | sim_sum$reps_with_warnings > sim_sum$reps)){
+  stop('Simulation summary has rates outside [0, 1] or warning counts outside [0, reps].')
+}
 if(any(sim_sum$n_valid < 2)){
   stop('Some simulation cells have fewer than 2 valid replications: ',
        paste(cell_key(sim_sum[sim_sum$n_valid < 2, ]), collapse = ', '))
@@ -122,15 +128,21 @@ trait_scales <- function(){
 }
 
 # One plot pair per model specification, from the summary: the false-positive
-# rate on a log scale (reference line at .05, bars at +/-2 Monte Carlo SE), and
+# rate on a log scale (reference line at .05, bars from a Wilson interval with
+# z = 2, about +/-2 Monte Carlo SE), and
 # the average estimate (reference line at 0, bars at +/-2 SE of the mean).
 plot_spec <- function(spec_name){
   d <- sim_sum[sim_sum$spec == spec_name, ]
   if(nrow(d) == 0) stop('No simulation results for spec "', spec_name, '".')
   d$trait <- factor(trait_label(d$trait_var), levels = trait_levels)
   d$fp_plot <- pmax(d$fp_rate, fp_floor)
-  d$fp_lo <- pmax(d$fp_rate - 2 * d$mc_se, fp_floor)
-  d$fp_hi <- pmax(pmin(d$fp_rate + 2 * d$mc_se, 1), fp_floor)
+  # Wilson interval with z = 2, which (unlike rate +/- 2 SE) doesn't collapse
+  # to a point at rates of 0 or 1.
+  z <- 2
+  centre <- (d$fp_rate + z^2 / (2 * d$n_valid)) / (1 + z^2 / d$n_valid)
+  half <- z * sqrt(d$fp_rate * (1 - d$fp_rate) / d$n_valid + z^2 / (4 * d$n_valid^2)) / (1 + z^2 / d$n_valid)
+  d$fp_lo <- pmax(centre - half, fp_floor)
+  d$fp_hi <- pmax(pmin(centre + half, 1), fp_floor)
   d$est_se <- d$sd_est / sqrt(d$n_valid)
   dodge <- position_dodge(width = .8)
   n_floored <- sum(d$fp_rate < fp_floor)
@@ -172,8 +184,12 @@ cells <- function(spec, tv, n = N_seq){
 avg_est <- function(spec, tv) mean(cells(spec, tv)$mean_est)
 rng <- function(x, digits = 3) paste0(f3(min(x), digits), ' to ', f3(max(x), digits))
 max_abs <- function(x, digits = 3) f3(max(abs(x)), digits)
-n_hot <- function(spec, tv) sum(with(cells(spec, tv), fp_rate - 2 * mc_se > .05))
-n_off <- function(spec, tv) sum(with(cells(spec, tv), abs(fp_rate - .05) > 2 * mc_se))
+# Cells more than two Monte Carlo SEs from .05, using the SE a rate of .05
+# would have (the SE at the observed rate is 0 when the rate is 0 or 1).
+null_se <- function(d) sqrt(.05 * .95 / d$n_valid)
+n_hot <- function(spec, tv){ d <- cells(spec, tv); sum(d$fp_rate - .05 > 2 * null_se(d)) }
+n_off <- function(spec, tv){ d <- cells(spec, tv); sum(abs(d$fp_rate - .05) > 2 * null_se(d)) }
+n_cells <- function(spec, tv) nrow(cells(spec, tv))
 max_n <- max(N_seq)
 
 
@@ -441,10 +457,16 @@ summary(cont1.yAR)
 #' as a failure and is left out of that cell (the table at the end shows how many); fits that only
 #' raise warnings are kept. With `r format(expected_reps, big.mark = ',')` replications, the Monte
 #' Carlo SE of a rate near .05 is about `r f3(sqrt(.05 * .95 / expected_reps))`; the error bars in
-#' the plots are ±2 SE. The 2018 runs used `lmeControl(opt = "optim")`, which stopped short of the
+#' the plots span about ±2 SE. The 2018 runs used `lmeControl(opt = "optim")`, which stopped short of the
 #' maximum around N = 300 and made a spurious spike there for centered x with AR(1); these runs use
 #' nlme's default optimizer, which fixes that.
 #' 
+
+#+echo = F, results = 'asis'
+if(results_dir != 'riclpm_sims_r10000'){
+  cat('\n\n**Note: this page was rendered from `', results_dir, '`, not the published results in `riclpm_sims_r10000`.**\n\n', sep = '')
+}
+
 #' The data generation and model fitting code is below. `sim_riclpm.R` reuses these definitions
 #' (and the generators above), and adds the naive model and the RI-CLPM fit. Running it
 #' (`Rscript sim_riclpm.R 10000 <cores>`) writes the summary this page reads,
@@ -771,9 +793,11 @@ check_claim(avg_est('no_wcen_ar', 0) > 0, 'AR(1) without centering has a positiv
 check_claim(rate_at('no_wcen_ar', 0, max_n) > rate_at('no_wcen_ar', 0, 30), 'the AR(1) rate on CLPM data climbs with N')
 check_claim(avg_est('wcen_ar', .5) < 0 && avg_est('wcen_ar', 1) < 0, 'centered x with AR(1) is biased negative with traits')
 check_claim(max(abs(wcen_ylag_all$mean_est)) < .02, 'centered x with centered lagged y is close to unbiased')
-check_claim(mean(wcen_ylag_all$fp_rate) > .05, 'centered x with centered lagged y runs a little hot')
+check_claim(mean(wcen_ylag_all$fp_rate) > .05 && mean(wcen_ylag_all$fp_rate) < .10 && n_hot('wcen_ylag', c(0, .5, 1)) > 0,
+            'centered x with centered lagged y runs a little hot (pooled rate between .05 and .10, some cells clearly above .05)')
+check_claim(n_off('no_wcen_ylag', 0) <= 2, 'lagged y controls the error rate on the CLPM data (at most 2 of 10 cells more than 2 SE from .05)')
 check_claim(max(abs(ric$mean_est)) < .02, 'the RI-CLPM is unbiased')
-check_claim(avg_est('no_wcen_ar', .5) < avg_est('no_wcen_ar', 0) && avg_est('no_wcen_ar', 1) < avg_est('no_wcen_ar', 0),
+check_claim(abs(avg_est('no_wcen_ar', .5)) < abs(avg_est('no_wcen_ar', 0)) && abs(avg_est('no_wcen_ar', 1)) < abs(avg_est('no_wcen_ar', 0)),
             'the AR(1) bias is smaller with a trait than on CLPM data')
 
 #' 
@@ -804,13 +828,13 @@ check_claim(avg_est('no_wcen_ar', .5) < avg_est('no_wcen_ar', 0) && avg_est('no_
 #' 
 #' Centered x with centered lagged y stays close to unbiased everywhere (every average estimate
 #' within `r max_abs(wcen_ylag_all$mean_est)` of zero) but runs a little hot: rates from
-#' `r rng(wcen_ylag_all$fp_rate)`, with `r n_hot('wcen_ylag', c(0, .5, 1))` of its 30 cells more
+#' `r rng(wcen_ylag_all$fp_rate)`, with `r n_hot('wcen_ylag', c(0, .5, 1))` of its `r n_cells('wcen_ylag', c(0, .5, 1))` cells more
 #' than two Monte Carlo SEs above .05. With Satterthwaite degrees of freedom that count is
 #' `r n_hot('wcen_ylag_l4', c(0, .5, 1))`, and with a random slope as well it's
 #' `r n_hot('wcen_ylag_l4_wcenre', c(0, .5, 1))`. The RI-CLPM is unbiased (within
 #' `r max_abs(ric$mean_est)` of zero) with rates from `r rng(ric$fp_rate)`; 
-#' `r n_off('riclpm', c(.5, 1))` of its 20 cells are more than two Monte Carlo SEs from .05, where
-#' about one would be by chance.
+#' `r n_off('riclpm', c(.5, 1))` of its `r n_cells('riclpm', c(.5, 1))` cells are more than two Monte Carlo SEs from .05, where
+#' about `r round(.046 * n_cells('riclpm', c(.5, 1)))` would be by chance.
 #' 
 #' One thing I didn't expect: AR(1) without centering is less biased with a trait than without one.
 #' Averaged over N, its estimate is `r f3(avg_est('no_wcen_ar', 0))` on the CLPM data,
