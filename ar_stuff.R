@@ -1,5 +1,5 @@
 #'---
-#' title: "Lagged effects in multilevel models: a null simulation"
+#' title: "Do we need to control for the outcome's t-1 score?"
 #' author: John Flournoy
 #' output: 
 #'   html_document:
