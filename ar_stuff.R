@@ -1,12 +1,14 @@
 #'---
-#' title: "False positives in lagged multilevel models"
-#' subtitle: "Do we need to control for the outcome's t-1 score? Prior-outcome control, person-mean centering, AR(1) residuals, and the RI-CLPM, by simulation"
+#' title: "False positives in multilevel models for longitudinal data"
+#' subtitle: "Do we need to control for the outcome's t-1 score? Lagged and concurrent effects, prior-outcome control, person-mean centering, AR(1) residuals, and the RI-CLPM, by simulation"
 #' author: John Flournoy
 #' output: 
 #'   html_document:
 #'     toc: true
 #'     toc_float: true
 #'     code_folding: hide
+#'     includes:
+#'       in_header: ar_stuff_head.html
 #' bibliography: refs.bib
 #' link-citations: true
 #'---

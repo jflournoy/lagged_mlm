@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use or cite these simulations, please cite them as below."
-title: "False positives in lagged multilevel models: prior-outcome control, person-mean centering, AR(1) residuals, and the RI-CLPM, by simulation"
+title: "False positives in multilevel models for longitudinal data: lagged and concurrent effects, prior-outcome control, person-mean centering, AR(1) residuals, and the RI-CLPM"
 authors:
   - family-names: Flournoy
     given-names: John C.
@@ -10,7 +10,25 @@ license: MIT
 date-released: "2026-10-14"
 keywords:
   - multilevel models
-  - lagged effects
-  - RI-CLPM
+  - mixed-effects models
+  - longitudinal data
+  - intensive longitudinal data
+  - monthly assessments
+  - multiwave prospective design
+  - within-person fluctuations
+  - within-person and between-person effects
   - person-mean centering
+  - lagged effects
+  - concurrent effects
+  - time-varying predictors
+  - prior outcome
+  - autoregressive models
+  - cross-lagged panel model
+  - RI-CLPM
+  - Nickell bias
   - false positive rate
+  - Type I error
+  - stressful life events
+  - anxiety and depression symptoms
+  - adolescence
+  - simulation

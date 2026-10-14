@@ -1,13 +1,53 @@
 {
-  "title": "False positives in lagged multilevel models: prior-outcome control, person-mean centering, AR(1) residuals, and the RI-CLPM, by simulation",
+  "title": "False positives in multilevel models for longitudinal data: lagged and concurrent effects, prior-outcome control, person-mean centering, AR(1) residuals, and the RI-CLPM",
   "upload_type": "software",
-  "description": "<p>Simulations of when lagged multilevel models (y on x at t-1) produce false positives, and which specifications fix them: controlling for the outcome's prior score, person-mean centering, AR(1) residuals, and the random-intercept cross-lagged panel model (RI-CLPM). A factorial varies the outcome's stability, the within-wave and trait correlations, the number of waves, and a true lagged effect, and includes concurrent within/between models with and without the prior outcome. Write-up: <a href=\"https://johnflournoy.science/lagged_mlm/\">https://johnflournoy.science/lagged_mlm/</a>.</p>",
-  "creators": [{"name": "Flournoy, John C."}],
+  "description": "<p>Simulations of when multilevel models for longitudinal data (y on x at t-1, or concurrent within-person effects) produce false positives, and which specifications fix them: controlling for the outcome's prior score, person-mean centering, AR(1) residuals, and the random-intercept cross-lagged panel model (RI-CLPM). A factorial varies the outcome's stability, the within-wave and trait correlations, the number of waves, and a true lagged effect, and includes concurrent within/between models with and without the prior outcome. Write-up: <a href=\"https://johnflournoy.science/lagged_mlm/\">https://johnflournoy.science/lagged_mlm/</a>.</p>",
+  "creators": [
+    {
+      "name": "Flournoy, John C."
+    }
+  ],
   "license": "MIT",
-  "keywords": ["multilevel models", "lagged effects", "cross-lagged panel model", "RI-CLPM", "person-mean centering", "within-person effects", "Nickell bias", "false positive rate", "intensive longitudinal data", "simulation"],
+  "keywords": [
+    "multilevel models",
+    "mixed-effects models",
+    "longitudinal data",
+    "intensive longitudinal data",
+    "monthly assessments",
+    "multiwave prospective design",
+    "within-person fluctuations",
+    "within-person and between-person effects",
+    "person-mean centering",
+    "lagged effects",
+    "concurrent effects",
+    "time-varying predictors",
+    "prior outcome",
+    "autoregressive models",
+    "cross-lagged panel model",
+    "RI-CLPM",
+    "Nickell bias",
+    "false positive rate",
+    "Type I error",
+    "stressful life events",
+    "anxiety and depression symptoms",
+    "adolescence",
+    "simulation"
+  ],
   "related_identifiers": [
-    {"identifier": "https://johnflournoy.science/lagged_mlm/", "relation": "isDocumentedBy", "resource_type": "publication-other"},
-    {"identifier": "https://johnflournoy.science/riclpm-lavaan-demo.html", "relation": "isSupplementTo", "resource_type": "publication-other"},
-    {"identifier": "https://github.com/jflournoy/riclpmr", "relation": "requires", "resource_type": "software"}
+    {
+      "identifier": "https://johnflournoy.science/lagged_mlm/",
+      "relation": "isDocumentedBy",
+      "resource_type": "publication-other"
+    },
+    {
+      "identifier": "https://johnflournoy.science/riclpm-lavaan-demo.html",
+      "relation": "isSupplementTo",
+      "resource_type": "publication-other"
+    },
+    {
+      "identifier": "https://github.com/jflournoy/riclpmr",
+      "relation": "requires",
+      "resource_type": "software"
+    }
   ]
 }
