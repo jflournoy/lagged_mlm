@@ -59,7 +59,7 @@ if(!all(needed_cols %in% names(sim_sum))){
 
 spec_labels <- c(
   naive = 'y ~ x_lag (naive)',
-  sea = 'centered x_lag + person mean (SEA papers)',
+  sea = 'centered x_lag + person mean + time (within/between)',
   no_wcen_ar = 'y ~ x_lag, AR(1)',
   no_wcen_ylag = 'y ~ y_lag + x_lag',
   wcen_ar = 'centered x_lag, AR(1)',
@@ -483,7 +483,7 @@ if(results_dir != 'riclpm_sims_r10000'){
 }
 
 #' The data generation and model fitting code is below. `sim_riclpm.R` reuses these definitions
-#' (and the generators above), and adds the naive model, the SEA-paper model, and the RI-CLPM fit. Running it
+#' (and the generators above), and adds the naive model, the within/between model, and the RI-CLPM fit. Running it
 #' (`Rscript sim_riclpm.R 10000 <cores>`) writes the summary this page reads,
 #' `riclpm_sims_summary.RDS`, into the folder named in `results_dir` at the top.
 #' 
@@ -586,18 +586,18 @@ run_model <- function(n = 250, gen_mod, wcen = FALSE, use_lag_y = FALSE, use_lme
 plot_spec('naive')
 
 #'
-#' ## The within/between model from the SEA papers
+#' ## The within/between model
 #'
 #' ```
 #' lag1.sea <- lme(y ~ 1 + wcen_x_lag + gcen_x + time_c, random = ~ 1 | id, data = someData_long,
 #'                 na.action = na.omit)
 #' ```
 #'
-#' This is the model behind the month-level lagged analyses in our SEA papers: x is split into
-#' each person's deviation from their own mean (lagged one month) and their mean itself (grand-mean
-#' centered), with a time term and a random intercept. The papers fit it in brms with weak priors;
-#' here it's fit with lme, which should give essentially the same estimates. Like the naive model, it
-#' has nothing for the prior month's y.
+#' This is a common way to set up month-level lagged analyses: x is split into each person's
+#' deviation from their own mean (lagged one month) and their mean itself (grand-mean centered), with
+#' a time term and a random intercept. It's often fit in brms with weak priors; here it's fit with lme,
+#' which should give essentially the same estimates. Like the naive model, it has nothing for the prior
+#' month's y.
 #'
 
 #+echo = T, fig.show = 'hold', out.width = '50%', fig.width = 5, fig.height = 4.5
@@ -949,11 +949,11 @@ if(anyNA(fac[c('reject_rate', 'mean_est', 'sd_over_se')])) stop('The factorial s
 fac_conds <- unique(fac[c('n', 'waves', 'sy', 'co', 'clxy', 'v', 'tcor')])
 fac$trait <- ifelse(fac$v == 0, 'none', ifelse(fac$tcor == 0, 'uncorrelated', 'correlated (.3)'))
 
-fac_labels <- c(naive = 'y ~ x_lag (naive)', sea = 'centered x_lag + person mean (SEA papers)',
+fac_labels <- c(naive = 'y ~ x_lag (naive)', sea = 'centered x_lag + person mean + time (within/between)',
                 no_wcen_ylag = 'y ~ y_lag + x_lag', wcen_x_raw_ylag = 'raw y_lag + centered x_lag',
                 wcen_ylag = 'centered y_lag + x_lag', wcen_ylag_wcenre = 'centered y_lag + x_lag, random slope',
                 no_wcen_ar = 'y ~ x_lag, AR(1)', wcen_ar = 'centered x_lag, AR(1)', riclpm = 'RI-CLPM',
-                sea_concurrent = 'concurrent SEA model', sea_concurrent_ylag = '+ raw y_lag',
+                sea_concurrent = 'concurrent within/between model', sea_concurrent_ylag = '+ raw y_lag',
                 sea_concurrent_wcen_ylag = '+ centered y_lag')
 
 # Mean over the matching cells of a statistic for one spec and term role;
@@ -1017,11 +1017,11 @@ both_stable <- function(d) d$sy == .7 & d$co == 0 & d$v == 0
 check_claim(fac_mean('mean_est', c('naive', 'sea'), 'lag', is_('clxy', 0), both_stable) < .005 &&
               fac_mean('reject_rate', c('naive', 'sea'), 'lag', is_('clxy', 0), both_stable) > .1 &&
               fac_mean('reject_rate', c('no_wcen_ar', 'no_wcen_ylag'), 'lag', is_('clxy', 0), both_stable) < .06,
-            'with both series stable and nothing else connecting them, naive and SEA are unbiased but reject > .1, and AR(1) and lagged y are near .05')
+            'with both series stable and nothing else connecting them, naive and within/between are unbiased but reject > .1, and AR(1) and lagged y are near .05')
 check_claim(fac_mean('reject_rate', 'naive', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), is_('v', 0)) < .08 &&
               fac_mean('reject_rate', 'sea', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), is_('v', 0)) > .5 &&
               fac_mean('mean_est', 'sea', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), is_('v', 0)) < -.1,
-            'with no y stability, the naive model is close to .05 but the SEA model is biased negative and rejects most of the time')
+            'with no y stability, the naive model is close to .05 but the within/between model is biased negative and rejects most of the time')
 pair <- function(spec, tc) fac_mean('reject_rate', spec, 'lag', is_('clxy', 0), is_('co', 0), function(d) d$v > 0, is_('tcor', tc))
 check_claim(all(sapply(c('naive', 'no_wcen_ylag', 'no_wcen_ar'), function(s) pair(s, .3) > pair(s, 0) + .04)) &&
               all(sapply(c('sea', 'wcen_x_raw_ylag', 'wcen_ylag', 'wcen_ylag_wcenre', 'wcen_ar', 'riclpm'), function(s) abs(pair(s, .3) - pair(s, 0)) < .01)),
@@ -1034,11 +1034,11 @@ check_claim(wcy('mean_est', 0, 6) < -.1 && wcy('mean_est', 0, 12) < -.05 &&
 bs <- function(stat, w) fac_mean(stat, c('naive', 'sea'), 'lag', is_('clxy', 0), both_stable, is_('waves', w))
 check_claim(bs('reject_rate', 12) > bs('reject_rate', 6) && bs('sd_over_se', 6) > 1.05 &&
               max(fac_cells(c('no_wcen_ar', 'no_wcen_ylag'), 'lag', is_('clxy', 0), both_stable)$reject_rate) < .06,
-            'both stable: naive/SEA error rates are more inflated with 12 waves than 6, SEs too small; uncentered lagged y and AR(1) every cell below .06')
+            'both stable: naive and within/between error rates are more inflated with 12 waves than 6, SEs too small; uncentered lagged y and AR(1) every cell below .06')
 check_claim(fac_mean('mean_est', 'naive', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), function(d) d$v > 0) < -.05 &&
               fac_mean('reject_rate', 'naive', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), function(d) d$v > 0) > .3 &&
               all(fac_cells('sea', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), is_('v', 0))$mean_est < -.05),
-            'with no y stability, the naive model is biased once there are traits, and the SEA model is biased without them')
+            'with no y stability, the naive model is biased once there are traits, and the within/between model is biased without them')
 check_claim(max(abs(fac_cells('wcen_ylag', 'lag', is_('clxy', 0), is_('co', 0))$mean_est)) < .01,
             'centered x with centered lagged y is unbiased whenever there is no within-wave correlation')
 tc_diff <- function(spec, co) {
@@ -1067,7 +1067,7 @@ check_claim(nrow(fac_old) == 26 && all(ifelse(repro$both_one, TRUE, abs(repro$z_
 
 #' The first thing the factorial shows is that the "safe cases" above are only half safe. With y as
 #' stable as x and nothing else connecting them (no within-wave correlation, no traits), the naive and
-#' SEA models aren't biased (average estimates within
+#' within/between models aren't biased (average estimates within
 #' `r max_abs(fac_cells(c('naive', 'sea'), 'lag', is_('clxy', 0), both_stable)$mean_est)` of zero),
 #' but they still reject `r f3(bs('reject_rate', 6))` of the time with 6 waves and
 #' `r f3(bs('reject_rate', 12))` with 12. The estimates vary `r f3(bs('sd_over_se', 6), 2)` and
@@ -1079,7 +1079,7 @@ check_claim(nrow(fac_old) == 26 && all(ifelse(repro$both_one, TRUE, abs(repro$z_
 #' with no traits); with traits its average estimate is
 #' `r f3(fac_mean('mean_est', 'naive', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), function(d) d$v > 0))`
 #' and it rejects `r f3(fac_mean('reject_rate', 'naive', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), function(d) d$v > 0))`
-#' of the time. The SEA model fails even without traits: average estimates of
+#' of the time. The within/between model is biased even without traits: average estimates of
 #' `r f3(fac_mean('mean_est', 'sea', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), is_('v', 0), is_('waves', 6)))`
 #' with 6 waves and
 #' `r f3(fac_mean('mean_est', 'sea', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), is_('v', 0), is_('waves', 12)))`
@@ -1162,8 +1162,8 @@ d_conc$trait <- factor(d_conc$trait, levels = c('none', 'uncorrelated', 'correla
 d_conc$N <- factor(d_conc$n, levels = c(50, 150))
 d_conc$Waves <- factor(d_conc$waves, levels = c(6, 12))
 
-#' The SEA papers' main models were concurrent: this month's y on this month's centered x, the person
-#' mean of x, and time. In Sanjay Srivastava's lab we'd have added last month's y, to ask whether x goes
+#' The within/between model is often used concurrently, too: this month's y on this month's centered x,
+#' the person mean of x, and time. In Sanjay Srivastava's lab we'd have added last month's y, to ask whether x goes
 #' with y over and above where y already was. Under the null for the concurrent within-person term (no
 #' within-wave correlation and no cross-lag), the estimate is unbiased, but the error rate is inflated as
 #' y gets more stable, probably for the same reason as above: x and y are each autocorrelated, so the model
