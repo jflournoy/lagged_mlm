@@ -22,6 +22,18 @@
 #' references); this page puts them side by side for monthly data. Varying the design (near the end) adds that
 #' centering on observed person means brings a bias of its own when y is less stable than x and the two
 #' move together within a wave.
+#' 
+#' _Keywords: `r paste(jsonlite::fromJSON('.zenodo.json')$keywords, collapse = ', ')`._
+
+#+echo = T
+# The keywords live in .zenodo.json; the page's meta tags (ar_stuff_head.html)
+# must list the same ones, so the two can't drift apart.
+page_keywords <- jsonlite::fromJSON('.zenodo.json')$keywords
+head_keywords <- sub('.*<meta name="keywords" content="([^"]*)".*', '\\1',
+                     paste(readLines('ar_stuff_head.html'), collapse = ' '))
+if (!identical(strsplit(head_keywords, ', ')[[1]], page_keywords)) {
+  stop('ar_stuff_head.html keywords differ from .zenodo.json; update the meta tag to match.')
+}
 
 #+echo = T, warning = F, error = F, message = F
 library(simsem)
