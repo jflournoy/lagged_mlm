@@ -40,7 +40,6 @@ library(simsem)
 library(nlme)
 library(lmerTest)
 library(lme4)
-library(semPlot)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -53,7 +52,7 @@ N_seq = c(seq(30, 150, 40), seq(300, 1050, 150))
 results_dir <- Sys.getenv("LAGGED_RESULTS_DIR", "riclpm_sims_r10000")
 expected_reps <- as.integer(Sys.getenv("LAGGED_EXPECTED_REPS", "10000"))
 
-# install.packages(c('simsem', 'nlme', 'lmerTest', 'lme4', 'semPlot', 'dplyr', 'tidyr', 'ggplot2'))
+# install.packages(c('simsem', 'nlme', 'lmerTest', 'lme4', 'dplyr', 'tidyr', 'ggplot2'))
 
 #+echo = T
 if(is.na(expected_reps) || expected_reps < 1){
@@ -216,6 +215,22 @@ n_off <- function(spec, tv){ d <- cells(spec, tv); sum(abs(d$fp_rate - .05) > 2 
 n_cells <- function(spec, tv) nrow(cells(spec, tv))
 max_n <- max(N_seq)
 
+#' # The data-generating model
+#' 
+#' All the data here come from one model, drawn below from the same lavaan syntax the simulations
+#' use. Each person's x and y at each wave is their usual level (a trait) plus a within-person part
+#' (the starred circles); the within-person parts carry over from wave to wave and are correlated
+#' within a wave. That's the RI-CLPM, and with no trait variance the traits drop out and it's the
+#' CLPM. I think of it as the realistic case for monthly data: people differ in their usual levels,
+#' and both x and y carry over from month to month and move together within a month. The first set of
+#' simulations holds it at one setting (both stabilities .7, within-wave correlation .5, no cross-lag,
+#' trait variance 0, .5 or 1 with uncorrelated traits); the factorial near the end varies the orange paths.
+#' 
+
+#+echo = T, fig.width = 16, fig.height = 7, out.width = '100%', fig.cap = "The data-generating model over 12 waves. Squares are observed scores, starred circles their within-person parts, and the ovals each person's traits. Orange paths are the ones the factorial varies (values in parentheses); x's stability is .7 throughout, the dashed y-to-x path is always 0, and with trait variance 0 the model is the CLPM."
+source('sim_factorial_lib.R')
+source('dgp_diagram.R')
+dgp_diagram(12)
 
 #+echo = T
 make_clpm_lavaan <- function(generate = T, generating_params = list(s = .7,cl = 0,r = 1,co = .5)){
@@ -383,11 +398,6 @@ generatingModel <- make_clpm_lavaan()
 someData <- simulateData(model=generatingModel, sample.nobs=250, empirical=T,
                          auto.fix.first = FALSE, auto.var = FALSE, auto.fix.single = FALSE,
                          auto.cov.lv.x = FALSE, auto.cov.y = FALSE)
-fit.DGM <- lavaan(make_clpm_lavaan(generate = F), someData, fixed.x=F)
-semPaths(fit.DGM, what='est', rotation=2, exoCov=T, exoVar=T, layout = 'tree2',
-         residuals = F, structural = F, sizeLat = 3, sizeMan = 3, sizeMan2 = 2, 
-         intercepts = F, layoutSplit = F, bifactor = c('omega', 'kappa', paste0('q', 1:12)))
-# summary(fit.DGM, standardize=T)
 
 someData_long <- someData %>% 
   mutate(id = 1:n()) %>%

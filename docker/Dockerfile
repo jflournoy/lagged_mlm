@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ARG PPM=https://packagemanager.posit.co/cran/__linux__/jammy/2024-04-01
 ARG RICLPMR_SHA=76822ab8f1d4ddf27a810c359489df69256abd86
-ARG PKGS="Matrix lme4 lmerTest lavaan nlme dplyr tidyr simsem semPlot ggplot2 rmarkdown knitr jsonlite"
+ARG PKGS="Matrix lme4 lmerTest lavaan nlme dplyr tidyr simsem semPlot ggplot2 rmarkdown knitr jsonlite tidySEM"
 
 RUN Rscript -e "options(repos = c(CRAN = '${PPM}')); install.packages(strsplit('${PKGS}', ' ')[[1]])"
 RUN Rscript -e "install.packages('https://github.com/jflournoy/riclpmr/archive/${RICLPMR_SHA}.tar.gz', repos = NULL, type = 'source')"
