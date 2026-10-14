@@ -1,5 +1,6 @@
 #'---
-#' title: "Do we need to control for the outcome's t-1 score?"
+#' title: "False positives in lagged multilevel models"
+#' subtitle: "Do we need to control for the outcome's t-1 score? Prior-outcome control, person-mean centering, AR(1) residuals, and the RI-CLPM, by simulation"
 #' author: John Flournoy
 #' output: 
 #'   html_document:
@@ -758,8 +759,9 @@ plot_spec('wcen_ylag_l4_wcenre')
 #' fit <- riclpmr::lavriclpm(riclpmModel = riclpm_fit_text, data = someData)
 #' ```
 #' 
-#' Last, the RI-CLPM itself, fit to the wide data with riclpmr, with each path constrained equal
-#' over waves. The estimate is the path from x at _t_ − 1 to y at _t_. It's the true model for the
+#' Last, the RI-CLPM itself, fit to the wide data with [riclpmr](https://github.com/jflournoy/riclpmr),
+#' with each path constrained equal over waves (for a walk-through of the model, see
+#' [my RI-CLPM tutorial](https://johnflournoy.science/riclpm-lavaan-demo.html)). The estimate is the path from x at _t_ − 1 to y at _t_. It's the true model for the
 #' trait data, so it's the benchmark here. It isn't fit to the CLPM data, where its trait variances
 #' would sit at their boundary of zero.
 #' 

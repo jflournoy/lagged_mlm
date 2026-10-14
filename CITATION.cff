@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use or cite these simulations, please cite them as below."
+title: "False positives in lagged multilevel models: prior-outcome control, person-mean centering, AR(1) residuals, and the RI-CLPM, by simulation"
+authors:
+  - family-names: Flournoy
+    given-names: John C.
+url: "https://johnflournoy.science/lagged_mlm/"
+repository-code: "https://github.com/jflournoy/lagged_mlm"
+license: MIT
+date-released: "2026-10-14"
+keywords:
+  - multilevel models
+  - lagged effects
+  - RI-CLPM
+  - person-mean centering
+  - false positive rate
