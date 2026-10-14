@@ -905,7 +905,8 @@ check_claim(abs(avg_est('no_wcen_ar', .5)) < abs(avg_est('no_wcen_ar', 0)) && ab
 #' The bias stays put while the standard error shrinks, so the rate climbs with N, to 
 #' `r f3(rate_at('no_wcen_ylag', .5, max_n))` and `r f3(rate_at('no_wcen_ylag', 1, max_n))` at
 #' N = `r max_n`. This is probably the well-known problem of a lagged outcome that is correlated with
-#' the random intercept [@nickell1981biases; @allison2017maximum].
+#' the random intercept [@falkenstrom2017dynamic; @allison2017maximum; for the fixed-effects version,
+#' @nickell1981biases].
 #' 
 #' AR(1) residuals have the same kind of trouble. On the CLPM data the average estimate is about
 #' `r f3(avg_est('no_wcen_ar', 0))`, so the rate goes from `r f3(rate_at('no_wcen_ar', 0, 30))` at
@@ -1097,12 +1098,14 @@ check_claim(nrow(fac_old) == 26 && all(ifelse(repro$both_one, TRUE, abs(repro$z_
 #' `r f3(wcy('mean_est', 0, 12))` with 12, and the rate is
 #' `r f3(wcy('reject_rate', 0, 6))` and `r f3(wcy('reject_rate', 0, 12))`. It's unbiased when y is as
 #' stable as x (the only case the earlier simulations looked at) and whenever there's no within-wave
-#' correlation. It looks like a version of the bias @nickell1981biases described for a lagged outcome
-#' with fixed effects, which shrinks with the number of waves and also shows up in person-mean-centered
-#' multilevel models [@hamaker2015center; @falkenstrom2017dynamic]: the person mean includes this
-#' month's x, which moves with this month's y, so subtracting it pulls the lagged coefficient down by
-#' something like one over the number of waves. That fits the bias about halving from 6 to 12 waves
-#' (see the figure below). I don't know why it cancels when the stabilities are
+#' correlation. It looks like a cousin of the bias @nickell1981biases described for a lagged outcome with
+#' fixed effects, which is negative, shrinks roughly as one over the number of waves, and also shows up in
+#' person-mean-centered multilevel models [@hamaker2015center; @falkenstrom2017dynamic]. Fixed-effects
+#' estimates are known to be biased whenever a predictor isn't strictly exogenous [@allison2017maximum],
+#' and here lagged x isn't, because x moves with y within a wave. My guess at the mechanism: the person
+#' mean includes this month's x, which moves with this month's y, so subtracting it pulls the lagged
+#' coefficient down by something like one over the number of waves. That fits the bias about halving
+#' from 6 to 12 waves (see the figure below). I don't know why it cancels when the stabilities are
 #' equal, and y was never more stable than x here.
 #' 
 #' Without a within-wave correlation, a trait correlation hurts only the models that don't center x:
