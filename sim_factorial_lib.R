@@ -172,7 +172,7 @@ specs <- list(
   no_wcen_ar       = list(fit = lme_ar_spec(y ~ 1 + x_lag, "x_lag"), roles = "lag"),
   wcen_ar          = list(fit = lme_ar_spec(y ~ 1 + wcen_x_lag + gcen_x, "wcen_x_lag"), roles = "lag"),
   riclpm           = list(fit = function(d, w, W) fit_riclpm(w, W), roles = "lag"),
-  # The concurrent SEA-paper model, and the same with the prior outcome added
+  # The concurrent within/between model, and the same with the prior outcome added
   # (raw, then person-mean centered): does x go with y "over and above" y[t-1]?
   sea_concurrent           = list(fit = lmer_spec(y ~ 1 + wcen_x + gcen_x + time_c + (1 | id), c("wcen_x", "gcen_x")),
                                   roles = c("within", "between")),

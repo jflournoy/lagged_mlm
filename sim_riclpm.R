@@ -103,11 +103,10 @@ run_naive <- function(n, gen_mod) {
   data.frame(n = n, x_lag_p = tt["x_lag", "p-value"], x_lag_bias = tt["x_lag", "Value"])
 }
 
-# The within/between model used for the month-level lagged analyses in the SEA
-# papers: lagged person-mean-centered x, the person mean (grand-mean centered),
-# and time, with a random intercept; no prior outcome and no AR structure. (The
-# papers fit it in brms with weak normal(0, 10) priors; lme gives essentially the
-# same estimates.)
+# A common within/between model for month-level lagged analyses: lagged
+# person-mean-centered x, the person mean (grand-mean centered), and time, with a
+# random intercept; no prior outcome and no AR structure. (It's often fit in brms
+# with weak priors; lme gives essentially the same estimates.)
 run_sea <- function(n, gen_mod) {
   d <- generate_data(n = n, gen_mod = gen_mod, wcen = TRUE)
   d$time_c <- d$wave - mean(d$wave)
