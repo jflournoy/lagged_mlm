@@ -1,7 +1,7 @@
 """
-Run the factorial simulations on this machine, in the jflournoy/verse-cmdstan
-container with the R library pinned to the same package snapshot as the Modal
-image. Same task selection, manifest guard and resume rule as modal_sim.py.
+Run the factorial simulations on this machine, in the lagged-mlm image built
+from docker/Dockerfile (the same environment modal_sim.py builds on Modal).
+Same task selection, manifest guard and resume rule as modal_sim.py.
 
     ~/code/replicate-ai-playground/.venv/bin/python run_local.py --reps 2500 --n 50,150 --waves 6,12 --cores 16
 """
@@ -9,6 +9,7 @@ import argparse
 import csv
 import io
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -16,22 +17,19 @@ from pathlib import Path
 from modal_sim import check_manifest, cost_weight, manifest, select_tasks, selection_record
 
 HERE = Path(__file__).resolve().parent
-IMAGE = "jflournoy/verse-cmdstan"
-RLIB = Path("/tmp/claude-1000/-home-jflournoy-code-johnflournoy-science/8e8cb46d-f036-4bab-b24a-19f138b97b61/scratchpad/rlib_sim")
+IMAGE = "lagged-mlm"
+
+
+def check_image():
+    r = subprocess.run(["docker", "image", "inspect", IMAGE], capture_output=True)
+    if r.returncode != 0:
+        raise SystemExit(f"docker image '{IMAGE}' not found; build it with: docker build -t {IMAGE} {HERE / 'docker'}")
 
 
 def docker_r(*args, check=True):
-    if not RLIB.is_dir():
-        raise SystemExit(f"R library not found at {RLIB}; build it with the 2024-04-01 PPM snapshot first")
-    cmd = ["docker", "run", "--rm", "-e", "OPENBLAS_NUM_THREADS=1", "-e", "OMP_NUM_THREADS=1",
-           "-v", f"{HERE}:/w", "-v", f"{RLIB}:/rlib", "-w", "/w", "--user", f"{_uid()}",
-           "-e", "R_LIBS=/rlib", IMAGE, "Rscript", "sim_factorial.R", *map(str, args)]
+    cmd = ["docker", "run", "--rm", "-v", f"{HERE}:/w", "-w", "/w", "--user", f"{os.getuid()}:{os.getgid()}",
+           "-e", "HOME=/tmp", IMAGE, "Rscript", "sim_factorial.R", *map(str, args)]
     return subprocess.run(cmd, check=check)
-
-
-def _uid():
-    import os
-    return f"{os.getuid()}:{os.getgid()}"
 
 
 def write_selection(out: Path, grid: list[dict], filters: dict):
@@ -48,6 +46,7 @@ def main():
     ap.add_argument("--waves", default="")
     ap.add_argument("--only", default="")
     a = ap.parse_args()
+    check_image()
     out = Path(a.out_dir) if a.out_dir else HERE / f"factorial_sims_r{a.reps}"
     out.mkdir(parents=True, exist_ok=True)
     grid_file = out / ".grid_tmp.csv"

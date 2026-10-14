@@ -39,21 +39,24 @@ import modal
 
 HERE = Path(__file__).parent
 
-PPM = "https://packagemanager.posit.co/cran/__linux__/jammy/2024-04-01"
-RICLPMR_SHA = "76822ab8f1d4ddf27a810c359489df69256abd86"
-PKGS = ["Matrix", "lme4", "lmerTest", "lavaan", "nlme", "dplyr", "tidyr"]
+DOCKERFILE = HERE / "docker" / "Dockerfile"
 
-r_vec = ", ".join(f'"{p}"' for p in PKGS)
+
+def dockerfile_arg(name: str) -> str:
+    """An ARG default from docker/Dockerfile, the one place the R environment
+    is defined; the manifest records it so results are tied to it."""
+    hits = [ln.split("=", 1)[1].strip().strip('"') for ln in DOCKERFILE.read_text().splitlines()
+            if ln.startswith(f"ARG {name}=")]
+    if len(hits) != 1:
+        raise SystemExit(f"expected exactly one 'ARG {name}=' line in {DOCKERFILE}, found {len(hits)}")
+    return hits[0]
+
+
+PPM = dockerfile_arg("PPM")
+RICLPMR_SHA = dockerfile_arg("RICLPMR_SHA")
+
 image = (
-    modal.Image.from_registry("rocker/r-ver:4.3.2", add_python="3.12")
-    .env({"OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1"})
-    .run_commands(
-        f"Rscript -e 'options(repos = c(CRAN = \"{PPM}\")); install.packages(c({r_vec}))'",
-        f"Rscript -e 'install.packages(\"https://github.com/jflournoy/riclpmr/archive/{RICLPMR_SHA}.tar.gz\", repos = NULL, type = \"source\")'",
-        # install.packages() only warns when a package fails; make the build fail instead.
-        f"Rscript -e 'for (p in c({r_vec}, \"riclpmr\")) {{ suppressMessages(library(p, character.only = TRUE)); "
-        f"cat(p, as.character(packageVersion(p)), \"\\n\") }}'",
-    )
+    modal.Image.from_dockerfile(DOCKERFILE, context_dir=DOCKERFILE.parent, add_python="3.12")
     .add_local_file(HERE / "sim_factorial_lib.R", "/sim/sim_factorial_lib.R")
     .add_local_file(HERE / "sim_factorial.R", "/sim/sim_factorial.R")
 )
