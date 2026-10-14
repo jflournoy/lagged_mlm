@@ -6,6 +6,8 @@
 #'     toc: true
 #'     toc_float: true
 #'     code_folding: hide
+#' bibliography: refs.bib
+#' link-citations: true
 #'---
 
 #' In 2018 I started a postdoc and was collaborating on decisions about how to model monthly data over the course of a year. The goal was to see if some variable 
@@ -13,7 +15,8 @@
 #' control for the *previous* month's level of the outcome variable, or else risk spurious effects driven by non-causal correlations between the constructs being measured. I wanted to see if the way collaborators were proposing to run these analyses was really problematic, and I wanted to explore any other ways to correct for these kinds of confounds. To do so, I simulated data where x and y move together over time but neither causes the
 #' other, and checked how often we conclude erroneously that $x_{t-1} \rightarrow y_{t}$. The short version: leave out last
 #' month's y and you get a high false positive rate, and when people also differ in stable ways on these constructs,
-#' some fixes that work in some situations don't fully work. Varying the design (near the end) adds that
+#' some fixes that work in some situations don't fully work. None of these problems is new (see the
+#' references); this page puts them side by side for monthly data. Varying the design (near the end) adds that
 #' centering on observed person means brings a bias of its own when y is less stable than x and the two
 #' move together within a wave.
 
@@ -595,7 +598,7 @@ plot_spec('naive')
 #'
 #' This is a common way to set up month-level lagged analyses: x is split into each person's
 #' deviation from their own mean (lagged one month) and their mean itself (grand-mean centered), with
-#' a time term and a random intercept. It's often fit in brms with weak priors; here it's fit with lme,
+#' a time term and a random intercept [@curran2011disaggregation; @wang2015disaggregating]. It's often fit in brms with weak priors; here it's fit with lme,
 #' which should give essentially the same estimates. Like the naive model, it has nothing for the prior
 #' month's y.
 #'
@@ -880,7 +883,7 @@ check_claim(abs(avg_est('no_wcen_ar', .5)) < abs(avg_est('no_wcen_ar', 0)) && ab
 #' ordinary omitted-variable problem, where the omitted variable is the outcome one wave earlier:
 #' $y_{t-1}$ causes $y_{t}$ and is correlated with $x_{t-1}$, so a regression of $y_{t}$ on
 #' $x_{t-1}$ alone reads that path as an effect. Stable traits add a second path, through
-#' between-person differences in people's typical levels of x and y.
+#' between-person differences in people's typical levels of x and y [@hamaker2015critique].
 #' 
 #' When is leaving out $y_{t-1}$ not a problem? Write a person's departure from their own usual level
 #' of y as $y_{t} = \phi y_{t-1} + e_{t}$. A model without $y_{t-1}$ then picks up $\phi$ times the
@@ -902,7 +905,7 @@ check_claim(abs(avg_est('no_wcen_ar', .5)) < abs(avg_est('no_wcen_ar', 0)) && ab
 #' The bias stays put while the standard error shrinks, so the rate climbs with N, to 
 #' `r f3(rate_at('no_wcen_ylag', .5, max_n))` and `r f3(rate_at('no_wcen_ylag', 1, max_n))` at
 #' N = `r max_n`. This is probably the well-known problem of a lagged outcome that is correlated with
-#' the random intercept.
+#' the random intercept [@nickell1981biases; @allison2017maximum].
 #' 
 #' AR(1) residuals have the same kind of trouble. On the CLPM data the average estimate is about
 #' `r f3(avg_est('no_wcen_ar', 0))`, so the rate goes from `r f3(rate_at('no_wcen_ar', 0, 30))` at
@@ -928,7 +931,8 @@ check_claim(abs(avg_est('no_wcen_ar', .5)) < abs(avg_est('no_wcen_ar', 0)) && ab
 #' one from the trait, like the one that hits lagged y. I wouldn't count on it.
 #' 
 #' So what should you do? Separate within-person from between-person variation at the latent level,
-#' with the RI-CLPM or with latent person-mean centering (as in DSEM), though only the RI-CLPM was
+#' with the RI-CLPM [@hamaker2015critique] or with latent person-mean centering [as in DSEM,
+#' @asparouhov2018dynamic; see also @ludtke2008multilevel], though only the RI-CLPM was
 #' simulated here. Observed person-mean centering plus centered lagged y comes close when y is about as
 #' stable as x, which may be fine as long as you know its error rate is somewhat inflated; when y is less stable than x
 #' and the two are correlated within a wave, it's biased (see Varying the design).
@@ -1072,7 +1076,8 @@ check_claim(nrow(fac_old) == 26 && all(ifelse(repro$both_one, TRUE, abs(repro$z_
 #' but they still reject `r f3(bs('reject_rate', 6))` of the time with 6 waves and
 #' `r f3(bs('reject_rate', 12))` with 12. The estimates vary `r f3(bs('sd_over_se', 6), 2)` and
 #' `r f3(bs('sd_over_se', 12), 2)` times as much as the standard errors say, probably because the
-#' residuals of a model without $y_{t-1}$ are autocorrelated and the standard errors assume they aren't.
+#' residuals of a model without $y_{t-1}$ are autocorrelated and the standard errors assume they aren't
+#' [the old problem of relating two autocorrelated series, @bartlett1935some; @granger1974spurious].
 #' Uncentered lagged y and AR(1) residuals are fine there. The other safe case, a y with no stability,
 #' holds for the naive model only when people don't differ in their usual levels
 #' (`r f3(fac_mean('reject_rate', 'naive', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), is_('v', 0)))`
@@ -1092,10 +1097,12 @@ check_claim(nrow(fac_old) == 26 && all(ifelse(repro$both_one, TRUE, abs(repro$z_
 #' `r f3(wcy('mean_est', 0, 12))` with 12, and the rate is
 #' `r f3(wcy('reject_rate', 0, 6))` and `r f3(wcy('reject_rate', 0, 12))`. It's unbiased when y is as
 #' stable as x (the only case the earlier simulations looked at) and whenever there's no within-wave
-#' correlation. My guess is that the person mean
-#' includes this month's x, which moves with this month's y, so subtracting it pulls the lagged
-#' coefficient down by something like one over the number of waves; that would fit the bias about
-#' halving from 6 to 12 waves (see the figure below). I don't know why it cancels when the stabilities are
+#' correlation. It looks like a version of the bias @nickell1981biases described for a lagged outcome
+#' with fixed effects, which shrinks with the number of waves and also shows up in person-mean-centered
+#' multilevel models [@hamaker2015center; @falkenstrom2017dynamic]: the person mean includes this
+#' month's x, which moves with this month's y, so subtracting it pulls the lagged coefficient down by
+#' something like one over the number of waves. That fits the bias about halving from 6 to 12 waves
+#' (see the figure below). I don't know why it cancels when the stabilities are
 #' equal, and y was never more stable than x here.
 #' 
 #' Without a within-wave correlation, a trait correlation hurts only the models that don't center x:
@@ -1226,4 +1233,7 @@ check_claim(abs(fac_mean('mean_est', 'riclpm', 'lag', is_('clxy', .1)) - .1) < .
 #' is also the model that generates the data with traits, and it isn't fit to the data without them. N = 600 and 24 waves (most of the computing
 #' cost) are the obvious next additions; they'd say whether the centering bias keeps
 #' shrinking with more waves and whether the biases that grow with N show up the same way here.
+#' 
+#' 
+#' # References
 #' 
