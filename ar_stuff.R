@@ -853,12 +853,12 @@ check_claim(rate_at('no_wcen_ar', 0, max_n) > rate_at('no_wcen_ar', 0, 30), 'the
 check_claim(avg_est('wcen_ar', .5) < 0 && avg_est('wcen_ar', 1) < 0, 'centered x with AR(1) is biased negative with traits')
 check_claim(max(abs(wcen_ylag_all$mean_est)) < .02, 'centered x with centered lagged y is close to unbiased')
 check_claim(mean(wcen_ylag_all$fp_rate) > .05 && mean(wcen_ylag_all$fp_rate) < .10 && n_hot('wcen_ylag', c(0, .5, 1)) > 0,
-            'centered x with centered lagged y runs a little hot (pooled rate between .05 and .10, some cells clearly above .05)')
+            'centered x with centered lagged y has a somewhat inflated error rate (pooled rate between .05 and .10, some cells clearly above .05)')
 # "Calibrated" here means every rate within .01 of .05, beyond Monte Carlo noise.
 calibrated <- function(d) all(abs(d$fp_rate - .05) - 2 * null_se(d) < .01)
 check_claim(calibrated(ylag0), 'lagged y controls the error rate on the CLPM data')
 check_claim(calibrated(ric_large), 'the RI-CLPM error rate is close to nominal from N = 150 up')
-check_claim(all(ric_30$fp_rate - .05 > 2 * null_se(ric_30)), 'the RI-CLPM runs hot at N = 30')
+check_claim(all(ric_30$fp_rate - .05 > 2 * null_se(ric_30)), 'the RI-CLPM error rate is inflated at N = 30')
 check_claim(sum(ric$reps_with_warnings[ric$n < 150]) >= .9 * sum(ric$reps_with_warnings),
             'nearly all RI-CLPM fit warnings are at N < 150')
 check_claim(avg_est('wcen_ar', 0) < 0 && rate_at('wcen_ar', 0, max_n) > rate_at('wcen_ar', 0, 30),
@@ -893,7 +893,7 @@ check_claim(abs(avg_est('no_wcen_ar', .5)) < abs(avg_est('no_wcen_ar', 0)) && ab
 #' whether x adds anything beyond y's own momentum. (Varying the design, below, adds caveats: that
 #' reasoning is for a plain regression of within-person departures, and the random-intercept models
 #' people actually fit can be biased even when y has no stability; and when x and y are both stable but
-#' otherwise unconnected, the estimate is unbiased but the test still runs hot.)
+#' otherwise unconnected, the estimate is unbiased but the error rate is still inflated.)
 #' 
 #' Adding lagged y fixes it on the CLPM data (rates from `r rng(ylag0$fp_rate)`, average estimates
 #' within `r max_abs(ylag0$mean_est)` of zero). But lagged y is the true model for CLPM data, so
@@ -911,13 +911,13 @@ check_claim(abs(avg_est('no_wcen_ar', .5)) < abs(avg_est('no_wcen_ar', 0)) && ab
 #' variance .5 and `r f3(avg_est('wcen_ar', 1))` at 1), with rates up to `r f3(max(wcen_ar_tr$fp_rate))`.
 #' 
 #' Centered x with centered lagged y stays close to unbiased in these simulations (every average estimate
-#' within `r max_abs(wcen_ylag_all$mean_est)` of zero) but runs a little hot: rates from
+#' within `r max_abs(wcen_ylag_all$mean_est)` of zero) but has a somewhat inflated error rate: rates from
 #' `r rng(wcen_ylag_all$fp_rate)`, with `r n_hot('wcen_ylag', c(0, .5, 1))` of its `r n_cells('wcen_ylag', c(0, .5, 1))` cells more
 #' than two Monte Carlo SEs above .05. With Satterthwaite degrees of freedom that count is
 #' `r n_hot('wcen_ylag_l4', c(0, .5, 1))`, and with a random slope as well it's
 #' `r n_hot('wcen_ylag_l4_wcenre', c(0, .5, 1))`. The RI-CLPM is unbiased at every N (within
 #' `r max_abs(ric$mean_est)` of zero), and from N = 150 up its rates are close to .05
-#' (`r rng(ric_large$fp_rate)`). Below that it runs hot (`r rng(ric_30$fp_rate)` at N = 30), which is
+#' (`r rng(ric_large$fp_rate)`). Below that its error rate is inflated (`r rng(ric_30$fp_rate)` at N = 30), which is
 #' about what you'd expect from a large-sample z-test with 24 observed variables and only a few dozen
 #' people, and it's also where nearly all of its fit warnings are.
 #' 
@@ -930,7 +930,7 @@ check_claim(abs(avg_est('no_wcen_ar', .5)) < abs(avg_est('no_wcen_ar', 0)) && ab
 #' So what should you do? Separate within-person from between-person variation at the latent level,
 #' with the RI-CLPM or with latent person-mean centering (as in DSEM), though only the RI-CLPM was
 #' simulated here. Observed person-mean centering plus centered lagged y comes close when y is about as
-#' stable as x, which may be fine as long as you know it runs a little hot; when y is less stable than x
+#' stable as x, which may be fine as long as you know its error rate is somewhat inflated; when y is less stable than x
 #' and the two are correlated within a wave, it's biased (see Varying the design).
 #' 
 #' # Varying the design
@@ -1034,7 +1034,7 @@ check_claim(wcy('mean_est', 0, 6) < -.1 && wcy('mean_est', 0, 12) < -.05 &&
 bs <- function(stat, w) fac_mean(stat, c('naive', 'sea'), 'lag', is_('clxy', 0), both_stable, is_('waves', w))
 check_claim(bs('reject_rate', 12) > bs('reject_rate', 6) && bs('sd_over_se', 6) > 1.05 &&
               max(fac_cells(c('no_wcen_ar', 'no_wcen_ylag'), 'lag', is_('clxy', 0), both_stable)$reject_rate) < .06,
-            'both stable: naive/SEA run hotter with 12 waves than 6, SEs too small; uncentered lagged y and AR(1) every cell below .06')
+            'both stable: naive/SEA error rates are more inflated with 12 waves than 6, SEs too small; uncentered lagged y and AR(1) every cell below .06')
 check_claim(fac_mean('mean_est', 'naive', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), function(d) d$v > 0) < -.05 &&
               fac_mean('reject_rate', 'naive', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), function(d) d$v > 0) > .3 &&
               all(fac_cells('sea', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), is_('v', 0))$mean_est < -.05),
@@ -1126,57 +1126,81 @@ ggplot(d_bias, aes(x = sy, y = mean_est, color = waves, shape = waves)) +
 
 #' ## The concurrent model
 #' 
-#' The SEA papers' main models were concurrent: this month's y on this month's centered x, the person
-#' mean of x, and time. In Sanjay Srivastava's lab we'd have added last month's y, to ask whether x goes
-#' with y over and above where y already was. Under the null for the concurrent within-person term (no
-#' within-wave correlation and no cross-lag), the estimate is unbiased, but the test runs hot as y gets
-#' more stable, probably for the same reason as above: x and y are each autocorrelated, so the model
-#' sees more independent information than there is. Adding raw lagged y
-#' fixes it. Centered lagged y helps when y is quite stable but runs a little hot everywhere, even where
-#' the bare model was fine (see the figure). The trait correlation shows up where it should, in the
-#' between-person term, and doesn't leak into the within-person one.
-#' 
-
 #+echo = T
 conc_specs <- c('sea_concurrent', 'sea_concurrent_ylag', 'sea_concurrent_wcen_ylag')
 cw <- function(stat, spec, ...) fac_mean(stat, spec, 'within', function(d) d$null, ...)
 check_claim(max(abs(fac_cells(conc_specs, 'within', function(d) d$null)$mean_est)) < .01 &&
               cw('reject_rate', 'sea_concurrent', is_('sy', .7)) > .1 && cw('reject_rate', 'sea_concurrent', is_('sy', 0)) < .06 &&
               cw('reject_rate', 'sea_concurrent', is_('sy', .7), is_('waves', 12)) > cw('reject_rate', 'sea_concurrent', is_('sy', .7), is_('waves', 6)),
-            'the concurrent within-person term is unbiased but runs hot as y stability rises, more so with more waves')
+            'the concurrent within-person term is unbiased but its error rate is inflated as y stability rises, more so with more waves')
 check_claim(abs(cw('reject_rate', 'sea_concurrent_ylag') - .05) < .01 &&
               cw('reject_rate', 'sea_concurrent_wcen_ylag', is_('sy', .7)) < cw('reject_rate', 'sea_concurrent', is_('sy', .7)) &&
               cw('reject_rate', 'sea_concurrent_wcen_ylag', is_('sy', 0)) > cw('reject_rate', 'sea_concurrent', is_('sy', 0)) &&
               min(fac_cells('sea_concurrent_wcen_ylag', 'within', function(d) d$null)$reject_rate) > .05,
-            'raw lagged y fixes the concurrent term; centered lagged y helps at high y stability but runs hot everywhere, worse than the bare model at sy = 0')
+            'raw lagged y fixes the concurrent term; centered lagged y helps at high y stability but leaves the error rate inflated everywhere, worse than the bare model at sy = 0')
 check_claim(abs(cw('reject_rate', 'sea_concurrent', is_('tcor', .3), function(d) d$v > 0) -
                   cw('reject_rate', 'sea_concurrent', is_('tcor', 0), function(d) d$v > 0)) < .01 &&
               fac_mean('reject_rate', 'sea_concurrent', 'between', is_('co', 0), is_('clxy', 0), is_('tcor', .3), function(d) d$v > 0) > .2,
             'the trait correlation shows up in the between-person term, not the within-person one')
 # RI-CLPM rejection rate under the .1 effect, for the next section.
 rp <- function(n, w) fac_mean('reject_rate', 'riclpm', 'lag', is_('clxy', .1), is_('n', n), is_('waves', w))
-d_conc <- fac_cells(conc_specs, 'within', function(d) d$null)
-d_conc <- aggregate(reject_rate ~ spec + sy + waves, data = d_conc, FUN = mean)
+# Person-mean (between) term with no within-wave correlation and no cross-lag,
+# by trait correlation; its true value is 0 only when tcor = 0.
+cb <- function(spec, tc) fac_mean('reject_rate', spec, 'between', is_('co', 0), is_('clxy', 0), function(d) d$v > 0, is_('tcor', tc))
+check_claim(all(sapply(conc_specs, function(s) cb(s, .3) > .2)) && cb('sea_concurrent_ylag', .3) < cb('sea_concurrent', .3) - .03 &&
+              max(abs(fac_cells(conc_specs, 'between', function(d) d$null)$reject_rate - .05)) < .025 &&
+              all(abs(sapply(c(0, .3, .7), function(y) cw('reject_rate', 'sea_concurrent', is_('sy', y), is_('tcor', .3), function(d) d$v > 0) -
+                                                     cw('reject_rate', 'sea_concurrent', is_('sy', y), is_('tcor', 0), function(d) d$v > 0))) < .02),
+            'the person-mean term picks up the trait correlation (less so with raw lagged y), holds its error rate otherwise, and the within-person term is unaffected by it at every y stability')
+# Both terms, no within-wave correlation and no cross-lag, every trait condition.
+d_conc <- fac[fac$spec %in% conc_specs & fac$co == 0 & fac$clxy == 0, ]
+d_conc <- aggregate(reject_rate ~ spec + role + sy + trait + n + waves, data = d_conc, FUN = mean)
 d_conc$model <- factor(fac_labels[d_conc$spec], levels = fac_labels[conc_specs])
-d_conc$waves <- factor(d_conc$waves)
+d_conc$term <- factor(ifelse(d_conc$role == 'within', 'within-person x\n(true value 0)', 'person mean of x\n(not 0 when traits correlate)'),
+                      levels = c('within-person x\n(true value 0)', 'person mean of x\n(not 0 when traits correlate)'))
+d_conc$trait <- factor(d_conc$trait, levels = c('none', 'uncorrelated', 'correlated (.3)'))
+d_conc$N <- factor(d_conc$n, levels = c(50, 150))
+d_conc$Waves <- factor(d_conc$waves, levels = c(6, 12))
 
-#+echo = T, fig.width = 8, fig.height = 4
-ggplot(d_conc, aes(x = sy, y = reject_rate, color = waves, shape = waves)) +
-  geom_hline(yintercept = .05, color = 'gray30', linetype = 'dashed') +
-  geom_line(linewidth = .5) + geom_point(size = 2) +
-  facet_wrap(~ model, nrow = 1) +
+#' The SEA papers' main models were concurrent: this month's y on this month's centered x, the person
+#' mean of x, and time. In Sanjay Srivastava's lab we'd have added last month's y, to ask whether x goes
+#' with y over and above where y already was. Under the null for the concurrent within-person term (no
+#' within-wave correlation and no cross-lag), the estimate is unbiased, but the error rate is inflated as
+#' y gets more stable, probably for the same reason as above: x and y are each autocorrelated, so the model
+#' sees more independent information than there is. Adding raw lagged y
+#' fixes it. Centered lagged y helps when y is quite stable but leaves the error rate somewhat inflated everywhere, even where
+#' the bare model was fine (see the figure). The trait correlation shows up where it should, in the
+#' person-mean term (which finds it `r f3(cb('sea_concurrent', .3))` of the time, averaged over N and waves),
+#' and doesn't leak into the within-person one at any level of y's stability, including none
+#' (`r f3(cw('reject_rate', 'sea_concurrent', is_('sy', 0), is_('tcor', .3), function(d) d$v > 0))` with
+#' correlated traits and no y stability). Adding raw lagged y takes some of that between-person association
+#' with it (`r f3(cb('sea_concurrent_ylag', .3))`), probably because last month's raw y carries each person's
+#' usual level; the person-mean terms hold their error rate when the traits are uncorrelated.
+#' 
+
+
+
+#+echo = T, fig.width = 9, fig.height = 7
+ggplot(d_conc, aes(x = sy, y = reject_rate, color = trait, shape = trait, alpha = N, linetype = Waves,
+                   group = interaction(trait, N, Waves))) +
+  geom_hline(yintercept = .05, color = 'gray30', linetype = 'dotted') +
+  geom_line(linewidth = .6) + geom_point(size = 1.8) +
+  facet_grid(term ~ model) +
+  scale_y_log10(breaks = c(.025, .05, .1, .25, .5, 1), labels = c('.025', '.05', '.1', '.25', '.5', '1'),
+                name = 'Proportion with p < .05 (log scale)') +
   scale_x_continuous(breaks = c(0, .3, .7), labels = c('0', '.3', '.7'), name = "y's stability (x's is .7)") +
-  scale_y_continuous(limits = c(0, NA), labels = function(x) f3(x, 2), name = 'Proportion with p < .05, within-person x') +
-  scale_color_manual(values = c('6' = '#2a78d6', '12' = '#d4572a'), name = 'Waves') +
-  scale_shape_manual(values = c('6' = 16, '12' = 17), name = 'Waves') +
-  labs(caption = 'No within-wave correlation and no cross-lag; averaged over N and the trait conditions.') +
+  scale_color_manual(values = c(none = '#7a7a7a', uncorrelated = '#2a78d6', 'correlated (.3)' = '#d4572a'), name = 'Traits') +
+  scale_shape_manual(values = c(none = 16, uncorrelated = 17, 'correlated (.3)' = 15), name = 'Traits') +
+  scale_alpha_manual(values = c('50' = .6, '150' = 1), name = 'N') +
+  scale_linetype_manual(values = c('6' = 'dashed', '12' = 'solid'), name = 'Waves') +
+  labs(caption = 'No within-wave correlation and no cross-lag. With traits, each point averages trait variance .5 and 1.') +
   sim_theme() + theme(axis.text.x = element_text(angle = 0, hjust = .5))
 
 #' ## With a true effect
 #' 
 #' With a lagged effect of .1, power is only meaningful for models that hold their error rate. The
 #' RI-CLPM comes closest: its null rates are `r rng(fac_cells('riclpm', 'lag', is_('clxy', 0))$reject_rate)`,
-#' a little hot at N = 50 with 6 waves, which is also where most of its fit warnings are (and it's the
+#' slightly inflated at N = 50 with 6 waves, which is also where most of its fit warnings are (and it's the
 #' generating model here, so this is its best case). It recovers the effect (average estimate
 #' `r f3(fac_mean('mean_est', 'riclpm', 'lag', is_('clxy', .1)))`), and the number of waves matters more
 #' for finding it than N does: `r f3(rp(50, 6))` at N = 50 with 6 waves, `r f3(rp(50, 12))` with 12,
@@ -1192,7 +1216,7 @@ check_claim(abs(fac_mean('mean_est', 'riclpm', 'lag', is_('clxy', .1)) - .1) < .
               mean(ric_null$reject_rate[hot_cell(ric_null)]) == max(tapply(ric_null$reject_rate, paste(ric_null$n, ric_null$waves), mean)) &&
               mean(ric_null$warn_rate[hot_cell(ric_null)]) == max(tapply(ric_null$warn_rate, paste(ric_null$n, ric_null$waves), mean)) &&
               rp(50, 12) - rp(50, 6) > rp(150, 6) - rp(50, 6),
-            'the RI-CLPM recovers .1; its null rates are below .08, hottest at N = 50 / 6 waves where warnings are most common; waves matter more than N for power')
+            'the RI-CLPM recovers .1; its null rates are below .08, most inflated at N = 50 / 6 waves where warnings are most common; waves matter more than N for power')
 
 #' # Limits
 #' 
