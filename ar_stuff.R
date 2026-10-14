@@ -14,7 +14,8 @@
 #' other, and checked how often we conclude erroneously that $x_{t-1} \rightarrow y_{t}$. The short version: leave out last
 #' month's y and you get a high false positive rate, and when people also differ in stable ways on these constructs,
 #' some fixes that work in some situations don't fully work. Varying the design (near the end) adds that
-#' centering on observed person means brings a bias of its own when x and y aren't equally stable.
+#' centering on observed person means brings a bias of its own when y is less stable than x and the two
+#' move together within a wave.
 
 #+echo = T, warning = F, error = F, message = F
 library(simsem)
@@ -889,8 +890,10 @@ check_claim(abs(avg_est('no_wcen_ar', .5)) < abs(avg_est('no_wcen_ar', 0)) && ab
 #' on x for someone isn't also high on y). Neither seems likely for most things we'd measure monthly,
 #' and if you want to lean on one, you'd need to show it rather than assume it. Without $y_{t-1}$, the
 #' model still answers a real question (does last month's x go along with this month's y?), just not
-#' whether x adds anything beyond y's own momentum. (Varying the design, below, adds a caveat: those
-#' two cases remove the bias, but not always the false positives.)
+#' whether x adds anything beyond y's own momentum. (Varying the design, below, adds caveats: that
+#' reasoning is for a plain regression of within-person departures, and the random-intercept models
+#' people actually fit can be biased even when y has no stability; and when x and y are both stable but
+#' otherwise unconnected, the estimate is unbiased but the test still runs hot.)
 #' 
 #' Adding lagged y fixes it on the CLPM data (rates from `r rng(ylag0$fp_rate)`, average estimates
 #' within `r max_abs(ylag0$mean_est)` of zero). But lagged y is the true model for CLPM data, so
@@ -926,9 +929,9 @@ check_claim(abs(avg_est('no_wcen_ar', .5)) < abs(avg_est('no_wcen_ar', 0)) && ab
 #' 
 #' So what should you do? Separate within-person from between-person variation at the latent level,
 #' with the RI-CLPM or with latent person-mean centering (as in DSEM), though only the RI-CLPM was
-#' simulated here. When x and y are about equally stable, observed person-mean centering plus centered
-#' lagged y comes close, which may be fine as long as you know it runs a little hot; when y is less
-#' stable than x, it's biased (see Varying the design).
+#' simulated here. Observed person-mean centering plus centered lagged y comes close when y is about as
+#' stable as x, which may be fine as long as you know it runs a little hot; when y is less stable than x
+#' and the two are correlated within a wave, it's biased (see Varying the design).
 #' 
 #' # Varying the design
 #' 
@@ -970,8 +973,9 @@ is_ <- function(col, val) function(d) d[[col]] %in% val
 #' number of waves (6, 12), a true effect of lagged x on y (0, .1), and the trait variance (0, .5,
 #' 1) with, when there are traits, a trait correlation (0, .3), at N = 50 and 150. That's
 #' `r nrow(fac_conds)` cells with `r format(fac_reps, big.mark = ',')` replications each, and every
-#' model is fit to the same simulated datasets within a cell. At the original settings, it reproduces
-#' the 10,000-replication results above within Monte Carlo error, model by model. The models are the
+#' model is fit to the same simulated datasets within a cell. At the original settings and N = 150 (the
+#' one sample size both runs have), it reproduces the 10,000-replication results above within Monte
+#' Carlo error, model by model. The models are the
 #' ones above, except that those fit with nlme without an AR structure are now fit with lme4
 #' (Satterthwaite degrees of freedom), and there are three new ones for the concurrent question below.
 #' 
@@ -1022,47 +1026,80 @@ check_claim(wcy('mean_est', 0, 6) < -.1 && wcy('mean_est', 0, 12) < -.05 &&
               abs(wcy('mean_est', 0, 12)) < .6 * abs(wcy('mean_est', 0, 6)) &&
               abs(wcy('mean_est', .7, 6)) < .005 && abs(wcy('mean_est', .7, 12)) < .005,
             'centered lagged y is biased negative when y is less stable than x, the bias about halving from 6 to 12 waves, and unbiased at equal stabilities')
+bs <- function(stat, w) fac_mean(stat, c('naive', 'sea'), 'lag', is_('clxy', 0), both_stable, is_('waves', w))
+check_claim(bs('reject_rate', 12) > bs('reject_rate', 6) && bs('sd_over_se', 6) > 1.05 &&
+              max(fac_cells(c('no_wcen_ar', 'no_wcen_ylag'), 'lag', is_('clxy', 0), both_stable)$reject_rate) < .06,
+            'both stable: naive/SEA run hotter with 12 waves than 6, SEs too small; uncentered lagged y and AR(1) every cell below .06')
+check_claim(fac_mean('mean_est', 'naive', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), function(d) d$v > 0) < -.05 &&
+              fac_mean('reject_rate', 'naive', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), function(d) d$v > 0) > .3 &&
+              all(fac_cells('sea', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), is_('v', 0))$mean_est < -.05),
+            'with no y stability, the naive model is biased once there are traits, and the SEA model is biased without them')
+check_claim(max(abs(fac_cells('wcen_ylag', 'lag', is_('clxy', 0), is_('co', 0))$mean_est)) < .01,
+            'centered x with centered lagged y is unbiased whenever there is no within-wave correlation')
+tc_diff <- function(spec, co) {
+  a <- fac_cells(spec, 'lag', is_('clxy', 0), is_('co', co), function(d) d$v > 0)
+  key <- paste(a$n, a$waves, a$sy, a$v)
+  r3 <- a$reject_rate[a$tcor == .3][order(key[a$tcor == .3])]
+  r0 <- a$reject_rate[a$tcor == 0][order(key[a$tcor == 0])]
+  r3 - r0
+}
+check_claim(all(sapply(c('sea', 'wcen_x_raw_ylag', 'wcen_ylag', 'wcen_ylag_wcenre', 'wcen_ar', 'riclpm'), function(s) max(abs(tc_diff(s, .5))) < .04)) &&
+              any(tc_diff('no_wcen_ylag', .5) < -.1) && any(tc_diff('no_wcen_ar', .5) > .1) && any(tc_diff('no_wcen_ar', .5) < -.1),
+            'with a within-wave correlation, the trait correlation leaves centered models and the RI-CLPM alone (within .04) but moves uncentered models both ways')
 fac_old <- fac[fac$sy == .7 & fac$co == .5 & fac$waves == 12 & fac$clxy == 0 & fac$tcor == 0 & fac$n == 150 & fac$role == 'lag', ]
 old_name <- c(naive = 'naive', sea = 'sea', no_wcen_ylag = 'no_wcen_ylag', wcen_x_raw_ylag = 'wcen_x_raw_ylag',
               wcen_ylag = 'wcen_ylag_l4', wcen_ylag_wcenre = 'wcen_ylag_l4_wcenre', no_wcen_ar = 'no_wcen_ar',
               wcen_ar = 'wcen_ar', riclpm = 'riclpm')
-repro_z <- mapply(function(s, v, r, se){
+# Rates of exactly 1 in both runs have an SE of 0 (z is NaN); those are
+# compared directly. Estimates are compared too.
+repro <- do.call(rbind, mapply(function(s, v, r, se, est, sd, nv){
   o <- cells(old_name[[s]], v, 150)
-  (r - o$fp_rate) / sqrt(se^2 + o$mc_se^2)
-}, fac_old$spec, fac_old$v, fac_old$reject_rate, fac_old$mc_se)
-check_claim(nrow(fac_old) == 26 && all(abs(repro_z[is.finite(repro_z)]) < 3),
-            'at the original settings, the factorial reproduces the 10,000-replication results within Monte Carlo error')
+  data.frame(z_rate = (r - o$fp_rate) / sqrt(se^2 + o$mc_se^2), both_one = r == 1 && o$fp_rate == 1,
+             z_est = (est - o$mean_est) / sqrt(sd^2 / nv + o$sd_est^2 / o$n_valid))
+}, fac_old$spec, fac_old$v, fac_old$reject_rate, fac_old$mc_se, fac_old$mean_est, fac_old$sd_est, fac_old$n_valid, SIMPLIFY = FALSE))
+check_claim(nrow(fac_old) == 26 && all(ifelse(repro$both_one, TRUE, abs(repro$z_rate) < 3)) && all(abs(repro$z_est) < 3.5),
+            'at the original settings and N = 150, the factorial reproduces the 10,000-replication rates and estimates within Monte Carlo error')
 
 #' The first thing the factorial shows is that the "safe cases" above are only half safe. With y as
 #' stable as x and nothing else connecting them (no within-wave correlation, no traits), the naive and
 #' SEA models aren't biased (average estimates within
 #' `r max_abs(fac_cells(c('naive', 'sea'), 'lag', is_('clxy', 0), both_stable)$mean_est)` of zero),
-#' but they still reject `r f3(fac_mean('reject_rate', c('naive', 'sea'), 'lag', is_('clxy', 0), both_stable))`
-#' of the time, because the residuals of a model without $y_{t-1}$ are autocorrelated and the standard errors don't know it
-#' (the estimates vary `r f3(fac_mean('sd_over_se', c('naive', 'sea'), 'lag', is_('clxy', 0), both_stable), 2)` times
-#' as much as the standard errors say). Models with lagged y or AR(1) residuals are fine there. The other
-#' safe case, a y with no stability (and no traits), works for the naive model
-#' (`r f3(fac_mean('reject_rate', 'naive', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), is_('v', 0)))`)
-#' but not for the SEA model, which rejects
-#' `r f3(fac_mean('reject_rate', 'sea', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), is_('v', 0)))`
-#' of the time with an average estimate of
-#' `r f3(fac_mean('mean_est', 'sea', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), is_('v', 0)))`.
+#' but they still reject `r f3(bs('reject_rate', 6))` of the time with 6 waves and
+#' `r f3(bs('reject_rate', 12))` with 12. The estimates vary `r f3(bs('sd_over_se', 6), 2)` and
+#' `r f3(bs('sd_over_se', 12), 2)` times as much as the standard errors say, probably because the
+#' residuals of a model without $y_{t-1}$ are autocorrelated and the standard errors assume they aren't.
+#' Uncentered lagged y and AR(1) residuals are fine there. The other safe case, a y with no stability,
+#' holds for the naive model only when people don't differ in their usual levels
+#' (`r f3(fac_mean('reject_rate', 'naive', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), is_('v', 0)))`
+#' with no traits); with traits its average estimate is
+#' `r f3(fac_mean('mean_est', 'naive', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), function(d) d$v > 0))`
+#' and it rejects `r f3(fac_mean('reject_rate', 'naive', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), function(d) d$v > 0))`
+#' of the time. The SEA model fails even without traits: average estimates of
+#' `r f3(fac_mean('mean_est', 'sea', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), is_('v', 0), is_('waves', 6)))`
+#' with 6 waves and
+#' `r f3(fac_mean('mean_est', 'sea', 'lag', is_('clxy', 0), is_('sy', 0), is_('co', .5), is_('v', 0), is_('waves', 12)))`
+#' with 12.
 #' 
-#' That negative bias seems to come from centering on the observed person mean, and it also shows up
-#' in centered x with centered lagged y once y is less stable than x. With no y stability and a
-#' within-wave correlation, its average estimate is `r f3(wcy('mean_est', 0, 6))` with 6 waves and
+#' That negative bias seems to come from centering on the observed person mean (a random-intercept model
+#' partly centers x too, which may be why the naive model picks it up once there are traits), and it also
+#' shows up in centered x with centered lagged y once y is less stable than x and the two are correlated
+#' within a wave. With no y stability, its average estimate is `r f3(wcy('mean_est', 0, 6))` with 6 waves and
 #' `r f3(wcy('mean_est', 0, 12))` with 12, and the rate is
-#' `r f3(wcy('reject_rate', 0, 6))` and `r f3(wcy('reject_rate', 0, 12))`. At equal stabilities it's
-#' unbiased, which is the only case the earlier simulations looked at. My guess is that the person mean
+#' `r f3(wcy('reject_rate', 0, 6))` and `r f3(wcy('reject_rate', 0, 12))`. It's unbiased when y is as
+#' stable as x (the only case the earlier simulations looked at) and whenever there's no within-wave
+#' correlation. My guess is that the person mean
 #' includes this month's x, which moves with this month's y, so subtracting it pulls the lagged
 #' coefficient down by something like one over the number of waves; that would fit the bias about
-#' halving from 6 to 12 waves (see the figure below). I don't know why it cancels when the stabilities are equal.
+#' halving from 6 to 12 waves (see the figure below). I don't know why it cancels when the stabilities are
+#' equal, and y was never more stable than x here.
 #' 
-#' A trait correlation hurts only the models that don't center x. Without a within-wave correlation,
+#' Without a within-wave correlation, a trait correlation hurts only the models that don't center x:
 #' going from uncorrelated to correlated traits takes the rate for lagged y from `r f3(pair('no_wcen_ylag', 0))`
 #' to `r f3(pair('no_wcen_ylag', .3))`, AR(1) from `r f3(pair('no_wcen_ar', 0))` to
 #' `r f3(pair('no_wcen_ar', .3))`, and the naive model from `r f3(pair('naive', 0))` to
-#' `r f3(pair('naive', .3))`; the centered models and the RI-CLPM stay where they were.
+#' `r f3(pair('naive', .3))`, and the centered models and the RI-CLPM stay where they were. With a
+#' within-wave correlation, it still leaves the centered models and the RI-CLPM alone, but it pushes the
+#' uncentered models' rates around in both directions, sometimes down, by offsetting their other biases.
 #' 
 
 #+echo = T, fig.width = 8, fig.height = 4
@@ -1088,9 +1125,10 @@ ggplot(d_bias, aes(x = sy, y = mean_est, color = waves, shape = waves)) +
 #' mean of x, and time. In Sanjay Srivastava's lab we'd have added last month's y, to ask whether x goes
 #' with y over and above where y already was. Under the null for the concurrent within-person term (no
 #' within-wave correlation and no cross-lag), the estimate is unbiased, but the test runs hot as y gets
-#' more stable, for the same reason as above: x and y are each autocorrelated, so the model sees more
-#' independent information than there is. Adding raw lagged y fixes it; centered lagged y gets most of
-#' the way there (see the figure). The trait correlation shows up where it should, in the
+#' more stable, probably for the same reason as above: x and y are each autocorrelated, so the model
+#' sees more independent information than there is. Adding raw lagged y
+#' fixes it. Centered lagged y helps when y is quite stable but runs a little hot everywhere, even where
+#' the bare model was fine (see the figure). The trait correlation shows up where it should, in the
 #' between-person term, and doesn't leak into the within-person one.
 #' 
 
@@ -1102,12 +1140,16 @@ check_claim(max(abs(fac_cells(conc_specs, 'within', function(d) d$null)$mean_est
               cw('reject_rate', 'sea_concurrent', is_('sy', .7), is_('waves', 12)) > cw('reject_rate', 'sea_concurrent', is_('sy', .7), is_('waves', 6)),
             'the concurrent within-person term is unbiased but runs hot as y stability rises, more so with more waves')
 check_claim(abs(cw('reject_rate', 'sea_concurrent_ylag') - .05) < .01 &&
-              cw('reject_rate', 'sea_concurrent_wcen_ylag') > .05 && cw('reject_rate', 'sea_concurrent_wcen_ylag') < cw('reject_rate', 'sea_concurrent'),
-            'raw lagged y fixes the concurrent term; centered lagged y gets most of the way')
+              cw('reject_rate', 'sea_concurrent_wcen_ylag', is_('sy', .7)) < cw('reject_rate', 'sea_concurrent', is_('sy', .7)) &&
+              cw('reject_rate', 'sea_concurrent_wcen_ylag', is_('sy', 0)) > cw('reject_rate', 'sea_concurrent', is_('sy', 0)) &&
+              min(fac_cells('sea_concurrent_wcen_ylag', 'within', function(d) d$null)$reject_rate) > .05,
+            'raw lagged y fixes the concurrent term; centered lagged y helps at high y stability but runs hot everywhere, worse than the bare model at sy = 0')
 check_claim(abs(cw('reject_rate', 'sea_concurrent', is_('tcor', .3), function(d) d$v > 0) -
                   cw('reject_rate', 'sea_concurrent', is_('tcor', 0), function(d) d$v > 0)) < .01 &&
               fac_mean('reject_rate', 'sea_concurrent', 'between', is_('co', 0), is_('clxy', 0), is_('tcor', .3), function(d) d$v > 0) > .2,
             'the trait correlation shows up in the between-person term, not the within-person one')
+# RI-CLPM rejection rate under the .1 effect, for the next section.
+rp <- function(n, w) fac_mean('reject_rate', 'riclpm', 'lag', is_('clxy', .1), is_('n', n), is_('waves', w))
 d_conc <- fac_cells(conc_specs, 'within', function(d) d$null)
 d_conc <- aggregate(reject_rate ~ spec + sy + waves, data = d_conc, FUN = mean)
 d_conc$model <- factor(fac_labels[d_conc$spec], levels = fac_labels[conc_specs])
@@ -1127,24 +1169,32 @@ ggplot(d_conc, aes(x = sy, y = reject_rate, color = waves, shape = waves)) +
 
 #' ## With a true effect
 #' 
-#' With a lagged effect of .1, power is only meaningful for models that hold their error rate, and
-#' the RI-CLPM does so in every null cell (all below .08). It recovers the effect (average estimate
-#' `r f3(fac_mean('mean_est', 'riclpm', 'lag', is_('clxy', .1)))`) and finds it
-#' `r f3(fac_mean('reject_rate', 'riclpm', 'lag', is_('clxy', .1), is_('n', 50)))` of the time at
-#' N = 50 and `r f3(fac_mean('reject_rate', 'riclpm', 'lag', is_('clxy', .1), is_('n', 150)))` at
-#' N = 150, averaged over the other conditions. The other models' rates under the alternative mix the
+#' With a lagged effect of .1, power is only meaningful for models that hold their error rate. The
+#' RI-CLPM comes closest: its null rates are `r rng(fac_cells('riclpm', 'lag', is_('clxy', 0))$reject_rate)`,
+#' a little hot at N = 50 with 6 waves, which is also where most of its fit warnings are (and it's the
+#' generating model here, so this is its best case). It recovers the effect (average estimate
+#' `r f3(fac_mean('mean_est', 'riclpm', 'lag', is_('clxy', .1)))`), and the number of waves matters more
+#' for finding it than N does: `r f3(rp(50, 6))` at N = 50 with 6 waves, `r f3(rp(50, 12))` with 12,
+#' and `r f3(rp(150, 6))` and `r f3(rp(150, 12))` at N = 150. The other models' rates under the alternative mix the
 #' effect with their biases, so I haven't summarized them here; they're in `summary_cells.csv`.
 #' 
 
 #+echo = T
+ric_null <- fac_cells('riclpm', 'lag', is_('clxy', 0))
+hot_cell <- function(d) d$n == 50 & d$waves == 6
 check_claim(abs(fac_mean('mean_est', 'riclpm', 'lag', is_('clxy', .1)) - .1) < .005 &&
-              max(fac_cells('riclpm', 'lag', is_('clxy', 0))$reject_rate) < .08,
-            'the RI-CLPM recovers the .1 effect and holds its error rate in every null cell (all below .08)')
+              max(ric_null$reject_rate) < .08 &&
+              mean(ric_null$reject_rate[hot_cell(ric_null)]) == max(tapply(ric_null$reject_rate, paste(ric_null$n, ric_null$waves), mean)) &&
+              mean(ric_null$warn_rate[hot_cell(ric_null)]) == max(tapply(ric_null$warn_rate, paste(ric_null$n, ric_null$waves), mean)) &&
+              rp(50, 12) - rp(50, 6) > rp(150, 6) - rp(50, 6),
+            'the RI-CLPM recovers .1; its null rates are below .08, hottest at N = 50 / 6 waves where warnings are most common; waves matter more than N for power')
 
 #' # Limits
 #' 
-#' The factorial only runs N = 50 and 150, with x's stability fixed at .7, no effect of y on x, one
-#' nonzero trait correlation, and one true effect size. N = 600 and 24 waves (most of the computing
+#' The factorial only runs N = 50 and 150, with x's stability fixed at .7 and y's never above it, one
+#' nonzero level each of the within-wave correlation, the trait correlation and the true effect, no
+#' effect of y on x, equal trait variances for x and y, and complete, balanced, normal data. The RI-CLPM
+#' is also the model that generates the data with traits, and it isn't fit to the data without them. N = 600 and 24 waves (most of the computing
 #' cost) are the obvious next additions; they'd say whether the centering bias keeps
 #' shrinking with more waves and whether the biases that grow with N show up the same way here.
 #' 
