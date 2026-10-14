@@ -1,6 +1,6 @@
 # Gate for sim_factorial_lib.R: at the 2018 design, the new generator must
 # produce exactly the old generator text, and make_long() the same long data as
-# ar_stuff.R's generate_data(); the Cholesky draws must have the implied
+# false_positives_mlm.R's generate_data(); the Cholesky draws must have the implied
 # moments; the generating effects must come back out of the data in the
 # direction their names say; and the null flags and grid must be as designed.
 #
@@ -8,7 +8,7 @@
 
 suppressMessages({ library(dplyr); library(tidyr) })
 source("sim_factorial_lib.R")
-ex <- parse("ar_stuff.R")
+ex <- parse("false_positives_mlm.R")
 for (e in ex) {
   if (is.call(e) && identical(e[[1]], as.name("<-")) && is.name(e[[2]]) &&
       as.character(e[[2]]) %in% c("make_clpm_lavaan", "make_riclpm_lavaan", "generate_data")) eval(e, globalenv())

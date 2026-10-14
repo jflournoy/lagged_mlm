@@ -1,6 +1,6 @@
 # The one R environment for lagged_mlm: simulations (sim_factorial.R,
 # run_local.py, and modal_sim.py, which builds its image from this file),
-# tests, summaries, and rendering ar_stuff.R.
+# tests, summaries, and rendering false_positives_mlm.R.
 #
 #   docker build -t lagged-mlm docker/
 #

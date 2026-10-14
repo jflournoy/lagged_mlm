@@ -1,5 +1,5 @@
 # Null simulations with a stable trait component: the same lagged-MLM
-# specifications as ar_stuff.R, but with data generated from the RI-CLPM
+# specifications as false_positives_mlm.R, but with data generated from the RI-CLPM
 # (make_riclpm_lavaan) instead of the CLPM, plus the RI-CLPM itself fit with
 # riclpmr as the correctly specified benchmark. Also runs the naive model
 # (y on lagged x with a random intercept and nothing else), including on the
@@ -51,14 +51,14 @@ suppressMessages({
 })
 
 # Reuse the exact function definitions from the write-up rather than copies.
-ex <- parse(file.path(script_dir, "ar_stuff.R"))
+ex <- parse(file.path(script_dir, "false_positives_mlm.R"))
 needed <- c("make_clpm_lavaan", "make_riclpm_lavaan", "generate_data", "run_model")
 for (e in ex) {
   if (is.call(e) && identical(e[[1]], as.name("<-")) && is.name(e[[2]]) &&
       as.character(e[[2]]) %in% needed) eval(e, globalenv())
 }
 missing_fns <- needed[!vapply(needed, exists, logical(1))]
-if (length(missing_fns) > 0) stop("not found in ar_stuff.R: ", paste(missing_fns, collapse = ", "))
+if (length(missing_fns) > 0) stop("not found in false_positives_mlm.R: ", paste(missing_fns, collapse = ", "))
 
 N_seq <- c(seq(30, 150, 40), seq(300, 1050, 150))
 trait_vars <- c(0, 0.5, 1)

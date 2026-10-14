@@ -1,7 +1,7 @@
 # lagged_mlm
 
 Simulations behind "Do we need to control for the outcome's t-1 score?"
-(`ar_stuff.R`, published at <https://johnflournoy.science/lagged_mlm/> from `docs/`).
+(`false_positives_mlm.R`, published at <https://johnflournoy.science/lagged_mlm/> from `docs/`).
 
 ## Environment
 
@@ -40,8 +40,8 @@ Render the page and publish it:
 
 ```bash
 docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -v $PWD:/r -w /r lagged-mlm \
-  Rscript -e 'rmarkdown::render("ar_stuff.R", knit_root_dir = "/r")'
-cp ar_stuff.html docs/ar_stuff.html
+  Rscript -e 'rmarkdown::render("false_positives_mlm.R", knit_root_dir = "/r")'
+cp false_positives_mlm.html docs/index.html
 ```
 
 The Python launchers need `modal` (for `modal_sim.py`, and imported by `run_local.py` for the shared

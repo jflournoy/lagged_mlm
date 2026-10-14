@@ -8,7 +8,7 @@
 # covariance .5, trait covariance 0) the generator text is identical to
 # make_clpm_lavaan() / make_riclpm_lavaan() + the fixed residual variances used
 # by sim_riclpm.R; tests/test_factorial_generator.R checks that, and that
-# make_long() gives the same long data as ar_stuff.R's generate_data().
+# make_long() gives the same long data as false_positives_mlm.R's generate_data().
 #
 # Data are drawn as Z %*% chol(Sigma) + mu from the moments simulateData()
 # itself would use (taken from it once per task), not with simulateData() per
@@ -100,7 +100,7 @@ simulate_wide <- function(n, mom) {
 }
 
 # Long data, one row per person-wave, sorted by id then wave, with the same
-# columns (and values) as ar_stuff.R's generate_data(wcen = TRUE), plus time_c.
+# columns (and values) as false_positives_mlm.R's generate_data(wcen = TRUE), plus time_c.
 make_long <- function(wide, W) {
   x <- as.matrix(wide[paste0("x", 1:W)])
   y <- as.matrix(wide[paste0("y", 1:W)])

@@ -13,3 +13,7 @@ check_dl/
 __pycache__/
 .check_ids
 run_r*.log
+
+# rendered page; the published copy is docs/index.html
+false_positives_mlm.html
+false_positives_mlm_files/

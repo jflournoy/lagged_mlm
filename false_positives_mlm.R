@@ -8,7 +8,7 @@
 #'     toc_float: true
 #'     code_folding: hide
 #'     includes:
-#'       in_header: ar_stuff_head.html
+#'       in_header: false_positives_mlm_head.html
 #' bibliography: refs.bib
 #' link-citations: true
 #'---
@@ -26,13 +26,13 @@
 #' _Keywords: `r paste(jsonlite::fromJSON('.zenodo.json')$keywords, collapse = ', ')`._
 
 #+echo = T
-# The keywords live in .zenodo.json; the page's meta tags (ar_stuff_head.html)
+# The keywords live in .zenodo.json; the page's meta tags (false_positives_mlm_head.html)
 # must list the same ones, so the two can't drift apart.
 page_keywords <- jsonlite::fromJSON('.zenodo.json')$keywords
 head_keywords <- sub('.*<meta name="keywords" content="([^"]*)".*', '\\1',
-                     paste(readLines('ar_stuff_head.html'), collapse = ' '))
+                     paste(readLines('false_positives_mlm_head.html'), collapse = ' '))
 if (!identical(strsplit(head_keywords, ', ')[[1]], page_keywords)) {
-  stop('ar_stuff_head.html keywords differ from .zenodo.json; update the meta tag to match.')
+  stop('false_positives_mlm_head.html keywords differ from .zenodo.json; update the meta tag to match.')
 }
 
 #+echo = T, warning = F, error = F, message = F

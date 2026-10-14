@@ -1,2 +1,3 @@
 2026-10-14: code hash narrowed to sim_factorial_lib.R (unchanged); old manifest in manifest.v1.json
 2026-10-14: sim_factorial_lib.R hash e36d9001b0ea -> 695e01532ff7; the only change is one comment line ("concurrent SEA-paper model" -> "concurrent within/between model"), no code.
+2026-10-14: sim_factorial_lib.R hash 695e01532ff7 -> b9b2faae4822; two comment lines renamed ar_stuff.R to false_positives_mlm.R, no code.
