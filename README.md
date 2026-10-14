@@ -40,7 +40,7 @@ Render the page and publish it:
 
 ```bash
 docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -v $PWD:/r -w /r lagged-mlm \
-  Rscript -e 'rmarkdown::render("ar_stuff.R", intermediates_dir = "/tmp", knit_root_dir = "/r")'
+  Rscript -e 'rmarkdown::render("ar_stuff.R", knit_root_dir = "/r")'
 cp ar_stuff.html docs/ar_stuff.html
 ```
 
