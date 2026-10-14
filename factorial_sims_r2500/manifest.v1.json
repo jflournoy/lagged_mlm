@@ -1,0 +1,10 @@
+{
+ "reps": 2500,
+ "grid_sha256": "99fb854396b91d4c0626ce3038b40dfbbd07bbe5e650bdc3e5f2a5b42a80ac91",
+ "code_sha256": {
+  "sim_factorial_lib.R": "e36d9001b0eaa06a5ce5db57ba55cd5dd7dfba2d2d9744830782276e00d2ce70",
+  "sim_factorial.R": "528af919e5f928d1fdba9077ec54db97f19a3ff265c42b8b5c9c03519bfeaa11"
+ },
+ "ppm_snapshot": "https://packagemanager.posit.co/cran/__linux__/jammy/2024-04-01",
+ "riclpmr_sha": "76822ab8f1d4ddf27a810c359489df69256abd86"
+}

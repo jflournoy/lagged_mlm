@@ -1,0 +1,1 @@
+2026-10-14: code hash narrowed to sim_factorial_lib.R (unchanged); old manifest in manifest.v1.json

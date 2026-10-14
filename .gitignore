@@ -5,3 +5,11 @@
 riclpm_sims_r1000/v*.RDS
 riclpm_sims_r10000/v*.RDS
 riclpm_sims_r10000/riclpm_sims_all.RDS
+factorial_sims_*/task_*.RDS
+factorial_sims_*/*PARTIAL*
+factorial_sims_r20/
+factorial_bench_*/
+check_dl/
+__pycache__/
+.check_ids
+run_r*.log
