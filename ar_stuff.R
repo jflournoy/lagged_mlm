@@ -983,27 +983,32 @@ is_ <- function(col, val) function(d) d[[col]] %in% val
 
 #+echo = T
 
-# Rates of null cells for the lagged models, averaged over N and waves (and
-# trait variance .5/1), one panel per model.
+# Rates of null cells for the lagged models, one panel per model and one line
+# per N x waves x trait condition (trait variance .5 and 1 averaged).
 lag_specs <- c('naive', 'sea', 'no_wcen_ylag', 'wcen_x_raw_ylag', 'wcen_ylag', 'wcen_ylag_wcenre',
                'no_wcen_ar', 'wcen_ar', 'riclpm')
 d_lag <- fac[fac$role == 'lag' & fac$null & fac$spec %in% lag_specs, ]
-d_lag <- aggregate(reject_rate ~ spec + sy + co + trait, data = d_lag, FUN = mean)
+d_lag <- aggregate(reject_rate ~ spec + sy + co + trait + n + waves, data = d_lag, FUN = mean)
+d_lag$N <- factor(d_lag$n, levels = c(50, 150))
+d_lag$Waves <- factor(d_lag$waves, levels = c(6, 12))
 d_lag$model <- factor(fac_labels[d_lag$spec], levels = fac_labels[lag_specs])
 d_lag$co <- factor(paste('within-wave r =', d_lag$co))
 d_lag$trait <- factor(d_lag$trait, levels = c('none', 'uncorrelated', 'correlated (.3)'))
 
-#+echo = T, fig.width = 10, fig.height = 8
-ggplot(d_lag, aes(x = sy, y = pmax(reject_rate, fp_floor), color = trait, shape = trait)) +
-  geom_hline(yintercept = .05, color = 'gray30', linetype = 'dashed') +
-  geom_line(linewidth = .5) + geom_point(size = 2) +
+#+echo = T, fig.width = 11, fig.height = 9
+ggplot(d_lag, aes(x = sy, y = pmax(reject_rate, fp_floor), color = trait, shape = trait, alpha = N, linetype = Waves,
+                  group = interaction(trait, N, Waves))) +
+  geom_hline(yintercept = .05, color = 'gray30', linetype = 'dotted') +
+  geom_line(linewidth = .6) + geom_point(size = 1.8) +
+  scale_alpha_manual(values = c('50' = .6, '150' = 1), name = 'N') +
+  scale_linetype_manual(values = c('6' = 'dashed', '12' = 'solid'), name = 'Waves') +
   facet_grid(co ~ model, labeller = label_wrap_gen(14)) +
   scale_y_log10(limits = c(fp_floor, 1), breaks = c(.01, .05, .1, .25, .5, 1), labels = c('.01', '.05', '.1', '.25', '.5', '1')) +
   scale_x_continuous(breaks = c(0, .3, .7), labels = c('0', '.3', '.7'), name = "y's stability (x's is .7)") +
   scale_color_manual(values = c(none = '#7a7a7a', uncorrelated = '#2a78d6', 'correlated (.3)' = '#d4572a'), name = 'Traits') +
   scale_shape_manual(values = c(none = 16, uncorrelated = 17, 'correlated (.3)' = 15), name = 'Traits') +
   labs(y = 'Proportion with p < .05 (log scale)',
-       caption = 'No true effect. Each point averages the N = 50 and 150 and 6- and 12-wave cells (and trait variance .5 and 1).') +
+       caption = 'No true effect. With traits, each point averages trait variance .5 and 1.') +
   sim_theme() + theme(axis.text.x = element_text(angle = 0, hjust = .5))
 
 #+echo = T
