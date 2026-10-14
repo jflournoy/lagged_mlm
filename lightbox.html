@@ -1,0 +1,26 @@
+<style>
+.main-container img { cursor: zoom-in; }
+#lb-overlay { position: fixed; inset: 0; background: rgba(20, 20, 20, .88); display: none;
+              align-items: center; justify-content: center; z-index: 10000; cursor: zoom-out; }
+#lb-overlay img { max-width: 97vw; max-height: 95vh; object-fit: contain; background: #fff;
+                  box-shadow: 0 0 24px rgba(0, 0, 0, .5); }
+</style>
+<script>
+// Click a figure to see it fit to the window; click again or press Escape to close.
+document.addEventListener('DOMContentLoaded', function () {
+  var overlay = document.createElement('div');
+  overlay.id = 'lb-overlay';
+  var big = document.createElement('img');
+  overlay.appendChild(big);
+  document.body.appendChild(overlay);
+  function close() { overlay.style.display = 'none'; big.removeAttribute('src'); }
+  overlay.addEventListener('click', close);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+  document.querySelectorAll('.main-container img').forEach(function (img) {
+    img.addEventListener('click', function () {
+      big.src = img.src; big.alt = img.alt || '';
+      overlay.style.display = 'flex';
+    });
+  });
+});
+</script>

@@ -8,7 +8,7 @@
 #'     toc_float: true
 #'     code_folding: hide
 #'     includes:
-#'       in_header: false_positives_mlm_head.html
+#'       in_header: [false_positives_mlm_head.html, lightbox.html]
 #' bibliography: refs.bib
 #' link-citations: true
 #'---
@@ -227,7 +227,7 @@ max_n <- max(N_seq)
 #' trait variance 0, .5 or 1 with uncorrelated traits); the factorial near the end varies the orange paths.
 #' 
 
-#+echo = T, fig.width = 16, fig.height = 7, out.width = '100%', fig.cap = "The data-generating model over 12 waves. Squares are observed scores, starred circles their within-person parts, and the ovals each person's traits. Orange paths are the ones the factorial varies (values in parentheses); x's stability is .7 throughout, the dashed y-to-x path is always 0, and with trait variance 0 the model is the CLPM."
+#+echo = T, fig.width = 21, fig.height = 7, out.width = '100%', fig.cap = "The data-generating model over 12 waves. Squares are observed scores, starred circles their within-person parts, and the ovals each person's traits. Orange paths are the ones the factorial varies; the key gives each path's value in the main simulations and its values in the factorial. With trait variance 0 the model is the CLPM."
 source('sim_factorial_lib.R')
 source('dgp_diagram.R')
 dgp_diagram(12)
