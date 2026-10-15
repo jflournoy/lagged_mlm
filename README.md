@@ -46,5 +46,7 @@ docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -v $PWD:/r -w /r lagged-ml
 cp false_positives_mlm.html docs/index.html
 ```
 
+The page header (`false_positives_mlm_head.html`) carries the site's Simple Analytics script, marked `data-external="1"` so pandoc links it instead of inlining it.
+
 The Python launchers need `modal` (for `modal_sim.py`, and imported by `run_local.py` for the shared
 task selection and manifest checks).

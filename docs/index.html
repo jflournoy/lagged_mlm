@@ -1376,6 +1376,7 @@ color: #d14;
 <meta name="description" content="Simulations of false positives in multilevel models for monthly and other multiwave longitudinal data: lagged and concurrent within-person effects, controlling for the prior outcome, person-mean centering, AR(1) residuals, and the RI-CLPM.">
 <meta name="keywords" content="multilevel models, mixed-effects models, longitudinal data, intensive longitudinal data, monthly assessments, multiwave prospective design, within-person fluctuations, within-person and between-person effects, person-mean centering, lagged effects, concurrent effects, time-varying predictors, prior outcome, autoregressive models, cross-lagged panel model, RI-CLPM, Nickell bias, false positive rate, Type I error, stressful life events, anxiety and depression symptoms, adolescence, simulation">
 <link rel="canonical" href="https://johnflournoy.science/lagged_mlm/" data-external="1">
+<script async src="https://scripts.simpleanalyticscdn.com/latest.js" data-external="1"></script>
 <style>
 .main-container img { cursor: zoom-in; }
 #lb-overlay { position: fixed; inset: 0; background: rgba(20, 20, 20, .88); display: none;
@@ -2087,8 +2088,8 @@ summary(lag1.misspec)</code></pre>
 ## x_lag 0     
 ## 
 ## Standardized Within-Group Residuals:
-##          Min           Q1          Med           Q3          Max 
-## -3.039911161 -0.657533322 -0.006439857  0.636238064  3.698607646 
+##         Min          Q1         Med          Q3         Max 
+## -3.46499698 -0.62690137  0.00927749  0.63885131  3.24688984 
 ## 
 ## Number of Observations: 2750
 ## Number of Groups: 250</code></pre>
@@ -2120,7 +2121,7 @@ summary(lag1.ylag)</code></pre>
 ## 
 ## Standardized Within-Group Residuals:
 ##         Min          Q1         Med          Q3         Max 
-## -3.14632468 -0.68090166  0.01015376  0.66933042  3.16524092 
+## -3.41742249 -0.67590142  0.01230991  0.66933149  3.64815781 
 ## 
 ## Number of Observations: 2750
 ## Number of Groups: 250</code></pre>
@@ -2157,7 +2158,7 @@ summary(lag1.yAR) </code></pre>
 ## 
 ## Standardized Within-Group Residuals:
 ##         Min          Q1         Med          Q3         Max 
-## -3.51514717 -0.65466606  0.02208315  0.66646978  3.84652902 
+## -3.23960128 -0.66495574 -0.01544389  0.65406990  3.53772305 
 ## 
 ## Number of Observations: 2750
 ## Number of Groups: 250</code></pre>
@@ -2193,7 +2194,7 @@ summary(cont1.y) </code></pre>
 ## 
 ## Standardized Within-Group Residuals:
 ##         Min          Q1         Med          Q3         Max 
-## -3.39296020 -0.62580060 -0.02355723  0.62279657  3.73237529 
+## -3.41898591 -0.61591442  0.01130662  0.64514830  3.43181771 
 ## 
 ## Number of Observations: 3000
 ## Number of Groups: 250</code></pre>
@@ -2209,16 +2210,16 @@ summary(cont1.yAR) </code></pre>
 ## Random effects:
 ##  Formula: ~1 | id
 ##         (Intercept) Residual
-## StdDev: 0.002047479 1.151257
+## StdDev: 0.001482153 1.151257
 ## 
 ## Correlation Structure: AR(1)
 ##  Formula: ~wave | id 
 ##  Parameter estimate(s):
 ##       Phi 
-## 0.6742304 
+## 0.6742303 
 ## Fixed effects:  y ~ 1 + x 
 ##             Value  Std.Error   DF  t-value p-value
-## (Intercept)   0.0 0.04108793 2749  0.00000       1
+## (Intercept)   0.0 0.04108783 2749  0.00000       1
 ## x             0.5 0.01581666 2749 31.61223       0
 ##  Correlation: 
 ##   (Intr)
@@ -2226,7 +2227,7 @@ summary(cont1.yAR) </code></pre>
 ## 
 ## Standardized Within-Group Residuals:
 ##         Min          Q1         Med          Q3         Max 
-## -3.90013877 -0.65734782 -0.01885757  0.64734471  4.14887836 
+## -3.22922537 -0.64880726  0.02708797  0.63116602  3.70819415 
 ## 
 ## Number of Observations: 3000
 ## Number of Groups: 250</code></pre>
