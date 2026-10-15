@@ -1662,6 +1662,10 @@ depression symptoms, adolescence, simulation.</em></p>
 <p><a href="https://doi.org/10.5281/zenodo.23383372"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23383372.svg" data-external="1" alt="DOI" /></a> Cite as: Flournoy, J. C. (2026).
 <em>False positives in multilevel models for longitudinal data</em>
 (Version 1.0.0) [Computer software]. Zenodo. <a href="https://doi.org/10.5281/zenodo.23383372" class="uri">https://doi.org/10.5281/zenodo.23383372</a></p>
+<p>Related: <a href="https://johnflournoy.science/riclpm-lavaan-demo.html">my RI-CLPM
+tutorial</a>, which walks through the model this page uses as its
+benchmark, and <a href="https://johnflournoy.science/riclpmr/">riclpmr</a> (<a href="https://github.com/jflournoy/riclpmr">GitHub</a>), the R package
+that writes and fits the RI-CLPMs here.</p>
 <pre class="r"><code># The keywords live in .zenodo.json; the page&#39;s meta tags (false_positives_mlm_head.html)
 # must list the same ones, so the two can&#39;t drift apart.
 page_keywords &lt;- jsonlite::fromJSON(&#39;.zenodo.json&#39;)$keywords
@@ -2088,8 +2092,8 @@ summary(lag1.misspec)</code></pre>
 ## x_lag 0     
 ## 
 ## Standardized Within-Group Residuals:
-##         Min          Q1         Med          Q3         Max 
-## -3.46499698 -0.62690137  0.00927749  0.63885131  3.24688984 
+##          Min           Q1          Med           Q3          Max 
+## -3.222457510 -0.664450222 -0.007026066  0.652039391  3.163183651 
 ## 
 ## Number of Observations: 2750
 ## Number of Groups: 250</code></pre>
@@ -2121,7 +2125,7 @@ summary(lag1.ylag)</code></pre>
 ## 
 ## Standardized Within-Group Residuals:
 ##         Min          Q1         Med          Q3         Max 
-## -3.41742249 -0.67590142  0.01230991  0.66933149  3.64815781 
+## -3.51871285 -0.67420543  0.01705005  0.67557148  3.44143032 
 ## 
 ## Number of Observations: 2750
 ## Number of Groups: 250</code></pre>
@@ -2157,8 +2161,8 @@ summary(lag1.yAR) </code></pre>
 ## x_lag 0     
 ## 
 ## Standardized Within-Group Residuals:
-##         Min          Q1         Med          Q3         Max 
-## -3.23960128 -0.66495574 -0.01544389  0.65406990  3.53772305 
+##          Min           Q1          Med           Q3          Max 
+## -3.608867611 -0.673027561 -0.003895255  0.686247040  3.253474016 
 ## 
 ## Number of Observations: 2750
 ## Number of Groups: 250</code></pre>
@@ -2193,8 +2197,8 @@ summary(cont1.y) </code></pre>
 ## x 0     
 ## 
 ## Standardized Within-Group Residuals:
-##         Min          Q1         Med          Q3         Max 
-## -3.41898591 -0.61591442  0.01130662  0.64514830  3.43181771 
+##           Min            Q1           Med            Q3           Max 
+## -3.4145142232 -0.6685924463 -0.0008439227  0.6645877150  3.2334933084 
 ## 
 ## Number of Observations: 3000
 ## Number of Groups: 250</code></pre>
@@ -2210,24 +2214,24 @@ summary(cont1.yAR) </code></pre>
 ## Random effects:
 ##  Formula: ~1 | id
 ##         (Intercept) Residual
-## StdDev: 0.001482153 1.151257
+## StdDev: 0.002047452 1.151257
 ## 
 ## Correlation Structure: AR(1)
 ##  Formula: ~wave | id 
 ##  Parameter estimate(s):
 ##       Phi 
-## 0.6742303 
+## 0.6742304 
 ## Fixed effects:  y ~ 1 + x 
 ##             Value  Std.Error   DF  t-value p-value
-## (Intercept)   0.0 0.04108783 2749  0.00000       1
+## (Intercept)   0.0 0.04108793 2749  0.00000       1
 ## x             0.5 0.01581666 2749 31.61223       0
 ##  Correlation: 
 ##   (Intr)
 ## x 0     
 ## 
 ## Standardized Within-Group Residuals:
-##         Min          Q1         Med          Q3         Max 
-## -3.22922537 -0.64880726  0.02708797  0.63116602  3.70819415 
+##           Min            Q1           Med            Q3           Max 
+## -3.8622559089 -0.6876919318 -0.0009276539  0.6934248767  3.4616202045 
 ## 
 ## Number of Observations: 3000
 ## Number of Groups: 250</code></pre>

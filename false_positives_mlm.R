@@ -28,6 +28,10 @@
 #' [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23383372.svg){data-external="1"}](https://doi.org/10.5281/zenodo.23383372) Cite as: Flournoy, J. C. (2026). _False positives in
 #' multilevel models for longitudinal data_ (Version 1.0.0) [Computer software]. Zenodo.
 #' <https://doi.org/10.5281/zenodo.23383372>
+#' 
+#' Related: [my RI-CLPM tutorial](https://johnflournoy.science/riclpm-lavaan-demo.html), which walks through
+#' the model this page uses as its benchmark, and [riclpmr](https://johnflournoy.science/riclpmr/)
+#' ([GitHub](https://github.com/jflournoy/riclpmr)), the R package that writes and fits the RI-CLPMs here.
 
 #+echo = T
 # The keywords live in .zenodo.json; the page's meta tags (false_positives_mlm_head.html)
