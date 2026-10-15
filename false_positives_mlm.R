@@ -1031,7 +1031,7 @@ ggplot(d_lag, aes(x = sy, y = pmax(reject_rate, fp_floor), color = trait, shape 
                   group = interaction(trait, N, Waves))) +
   geom_hline(yintercept = .05, color = 'gray30', linetype = 'dotted') +
   geom_line(linewidth = .6) + geom_point(size = 1.8) +
-  scale_alpha_manual(values = c('50' = .6, '150' = 1), name = 'N') +
+  scale_alpha_manual(values = c('50' = .5, '150' = 1), name = 'N') +
   scale_linetype_manual(values = c('6' = 'dashed', '12' = 'solid'), name = 'Waves') +
   facet_grid(model ~ co, labeller = label_wrap_gen(22)) +
   scale_y_log10(limits = c(fp_floor, 1), breaks = c(.01, .05, .1, .25, .5, 1), labels = c('.01', '.05', '.1', '.25', '.5', '1')) +
@@ -1230,7 +1230,7 @@ ggplot(d_conc, aes(x = sy, y = reject_rate, color = trait, shape = trait, alpha 
   scale_x_continuous(breaks = c(0, .3, .7), labels = c('0', '.3', '.7'), name = "y's stability (x's is .7)") +
   scale_color_manual(values = c(none = '#7a7a7a', uncorrelated = '#2a78d6', 'correlated (.3)' = '#d4572a'), name = 'Traits') +
   scale_shape_manual(values = c(none = 16, uncorrelated = 17, 'correlated (.3)' = 15), name = 'Traits') +
-  scale_alpha_manual(values = c('50' = .6, '150' = 1), name = 'N') +
+  scale_alpha_manual(values = c('50' = .5, '150' = 1), name = 'N') +
   scale_linetype_manual(values = c('6' = 'dashed', '12' = 'solid'), name = 'Waves') +
   labs(caption = 'No within-wave correlation and no cross-lag. With traits, each point averages trait variance .5 and 1.') +
   sim_theme() + theme(axis.text.x = element_text(angle = 0, hjust = .5))
