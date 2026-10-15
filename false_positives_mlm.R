@@ -19,7 +19,7 @@
 #' other, and checked how often we conclude erroneously that $x_{t-1} \rightarrow y_{t}$. The short version: leave out last
 #' month's y and you get a high false positive rate, and when people also differ in stable ways on these constructs,
 #' some fixes that work in some situations don't fully work. None of these problems is new (see the
-#' references); this page puts them side by side for monthly data. Varying the design (near the end) adds that
+#' references); this page is a tutorial-style walk-through that puts them side by side for monthly data, with the code to reproduce each step. Varying the design (near the end) adds that
 #' centering on observed person means brings a bias of its own when y is less stable than x and the two
 #' move together within a wave.
 #' 
