@@ -4,6 +4,8 @@ title: "False positives in multilevel models for longitudinal data: lagged and c
 authors:
   - family-names: Flournoy
     given-names: John C.
+doi: 10.5281/zenodo.23383372
+version: 1.0.0
 url: "https://johnflournoy.science/lagged_mlm/"
 repository-code: "https://github.com/jflournoy/lagged_mlm"
 license: MIT
