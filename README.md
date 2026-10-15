@@ -2,7 +2,7 @@
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23383372.svg)](https://doi.org/10.5281/zenodo.23383372)
 
-Simulations behind "Do we need to control for the outcome's t-1 score?"
+Simulations behind "False positives in multilevel models for longitudinal data"
 (`false_positives_mlm.R`, published at <https://johnflournoy.science/lagged_mlm/> from `docs/`).
 
 ## Environment
